@@ -263,13 +263,18 @@ completeSigFromId ctxt id
                 , sig_loc  = getSrcSpan id }
 
 isCompleteHsSig :: LHsSigWcType GhcRn -> Bool
--- ^ If there are no wildcards, return a LHsSigType
-isCompleteHsSig (HsWC { hswc_ext  = wcs
-                      , hswc_body = HsIB { hsib_body = hs_ty } })
-   = null wcs && no_anon_wc hs_ty
+-- ^ If there are no wildcards, return a LHsSigWcType
+isCompleteHsSig (HsWC { hswc_ext = wcs, hswc_body = hs_sig_ty })
+   = null wcs && no_anon_wc_sig_ty hs_sig_ty
 
-no_anon_wc :: LHsType GhcRn -> Bool
-no_anon_wc lty = go lty
+no_anon_wc_sig_ty :: LHsSigType GhcRn -> Bool
+no_anon_wc_sig_ty (L _ (HsSig{sig_bndrs = outer_bndrs, sig_body = body})) =
+  case outer_bndrs of
+    HsOuterImplicit{}                 -> no_anon_wc_ty body
+    HsOuterExplicit{hso_bndrs = ltvs} -> all no_anon_wc_tvb ltvs && no_anon_wc_ty body
+
+no_anon_wc_ty :: LHsType GhcRn -> Bool
+no_anon_wc_ty lty = go lty
   where
     go (L _ ty) = case ty of
       HsWildCardTy _                 -> False
@@ -304,11 +309,13 @@ no_anon_wc lty = go lty
 
 no_anon_wc_tele :: HsForAllTelescope GhcRn -> Bool
 no_anon_wc_tele tele = case tele of
-  HsForAllVis   { hsf_vis_bndrs   = ltvs } -> all (go . unLoc) ltvs
-  HsForAllInvis { hsf_invis_bndrs = ltvs } -> all (go . unLoc) ltvs
-  where
-    go (UserTyVar _ _ _)      = True
-    go (KindedTyVar _ _ _ ki) = no_anon_wc ki
+  HsForAllVis   { hsf_vis_bndrs   = ltvs } -> all no_anon_wc_tvb ltvs
+  HsForAllInvis { hsf_invis_bndrs = ltvs } -> all no_anon_wc_tvb ltvs
+
+no_anon_wc_tvb :: LHsTyVarBndr flag GhcRn -> Bool
+no_anon_wc_tvb (L _ tvb) = case tvb of
+  UserTyVar _ _ _      -> True
+  KindedTyVar _ _ _ ki -> no_anon_wc_ty ki
 
 {- Note [Fail eagerly on bad signatures]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -382,24 +389,26 @@ and fail, as it should.)
 tcPatSynSig :: Name -> LHsSigType GhcRn -> TcM TcPatSynInfo
 -- See Note [Pattern synonym signatures]
 -- See Note [Recipe for checking a signature] in GHC.Tc.Gen.HsType
-tcPatSynSig name sig_ty
-  | HsIB { hsib_ext = implicit_hs_tvs
-         , hsib_body = hs_ty }  <- sig_ty
-  , (univ_hs_tvbndrs, hs_req,  hs_ty1)     <- splitLHsSigmaTyInvis hs_ty
-  , (ex_hs_tvbndrs,   hs_prov, hs_body_ty) <- splitLHsSigmaTyInvis hs_ty1
+tcPatSynSig name sig_ty@(L _ (HsSig{sig_bndrs = outer_bndrs, sig_body = hs_ty}))
+  | (hs_req, hs_ty1) <- splitLHsQualTy hs_ty
+  , (ex_hs_tvbndrs, hs_prov, hs_body_ty) <- splitLHsSigmaTyInvis hs_ty1
   = do {  traceTc "tcPatSynSig 1" (ppr sig_ty)
-       ; (implicit_tvs, (univ_tvbndrs, (ex_tvbndrs, (req, prov, body_ty))))
+       ; (implicit_or_univ_tvbndrs, (ex_tvbndrs, (req, prov, body_ty)))
            <- pushTcLevelM_   $
               solveEqualities $ -- See Note [solveEqualities in tcPatSynSig]
-              bindImplicitTKBndrs_Skol implicit_hs_tvs $
-              bindExplicitTKBndrs_Skol univ_hs_tvbndrs $
-              bindExplicitTKBndrs_Skol ex_hs_tvbndrs   $
+              bindOuterSigTKBndrs_Skol outer_bndrs   $
+              bindExplicitTKBndrs_Skol ex_hs_tvbndrs $
               do { req     <- tcHsContext hs_req
                  ; prov    <- tcHsContext hs_prov
                  ; body_ty <- tcHsOpenType hs_body_ty
                      -- A (literal) pattern can be unlifted;
                      -- e.g. pattern Zero <- 0#   (#12094)
                  ; return (req, prov, body_ty) }
+
+         -- TODO RGS: Is this the cleanest way to do this?
+       ; let (implicit_tvs, univ_tvbndrs) = case implicit_or_univ_tvbndrs of
+               Left  implicit_tvs' -> (implicit_tvs', [])
+               Right univ_tvbndrs' -> ([], univ_tvbndrs')
 
        ; let ungen_patsyn_ty = build_patsyn_type [] implicit_tvs univ_tvbndrs
                                                  req ex_tvbndrs prov body_ty

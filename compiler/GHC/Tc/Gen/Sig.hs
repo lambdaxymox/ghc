@@ -20,7 +20,7 @@ module GHC.Tc.Gen.Sig(
        tcInstSig,
 
        TcPragEnv, emptyPragEnv, lookupPragEnv, extendPragEnv,
-       mkPragEnv, tcSpecPrags, tcSpecWrapper, tcImpPrags, addInlinePrags
+       mkPragEnv, tcSpecPrags, tcSpecWrapper, tcImpPrags, addIdPrags
    ) where
 
 #include "HsVersions.h"
@@ -594,7 +594,13 @@ lhsBindArity _ env = env        -- PatBind/VarBind
 
 
 -----------------
-addInlinePrags :: TcId -> [LSig GhcRn] -> TcM TcId
+
+-- | Attach information from pragmas to an 'Id'\'s 'IdInfo'.
+addIdPrags :: TcId -> [LSig GhcRn] -> TcM TcId
+addIdPrags poly_id prags_for_me
+  = addInlinePrags poly_id prags_for_me
+
+addInlinePrags :: TcId -> [LSig GhcRc] -> TcM TcId
 addInlinePrags poly_id prags_for_me
   | inl@(L _ prag) : inls <- inl_prags
   = do { traceTc "addInlinePrag" (ppr poly_id $$ ppr prag)

@@ -729,7 +729,7 @@ tcPolyCheck prag_fn
        ; let prag_sigs = lookupPragEnv prag_fn name
              poly_id2  = mkLocalId mono_name (idMult poly_id) (idType poly_id)
        ; spec_prags <- tcSpecPrags    poly_id prag_sigs
-       ; poly_id    <- addInlinePrags poly_id prag_sigs
+       ; poly_id    <- addIdPrags poly_id prag_sigs
 
        ; mod <- getModule
        ; tick <- funBindTicks nm_loc poly_id mod prag_sigs
@@ -867,7 +867,7 @@ mkExport prag_fn insoluble qtvs theta
         ; poly_id <- mkInferredPolyId insoluble qtvs theta poly_name mb_sig mono_ty
 
         -- NB: poly_id has a zonked type
-        ; poly_id <- addInlinePrags poly_id prag_sigs
+        ; poly_id <- addIdPrags poly_id prag_sigs
         ; spec_prags <- tcSpecPrags poly_id prag_sigs
                 -- tcPrags requires a zonked poly_id
 
@@ -1516,7 +1516,7 @@ tcLhsSigId no_gen (name, sig)
 newSigLetBndr :: LetBndrSpec -> Name -> TcIdSigInst -> TcM TcId
 newSigLetBndr (LetGblBndr prags) name (TISI { sig_inst_sig = id_sig })
   | CompleteSig { sig_bndr = poly_id } <- id_sig
-  = addInlinePrags poly_id (lookupPragEnv prags name)
+  = addIdPrags poly_id (lookupPragEnv prags name)
 newSigLetBndr no_gen name (TISI { sig_inst_tau = tau })
   = newLetBndr no_gen name Many tau
     -- Binders with a signature are currently always of multiplicity

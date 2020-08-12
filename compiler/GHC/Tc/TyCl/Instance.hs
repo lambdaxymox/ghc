@@ -1753,7 +1753,7 @@ tcMethodBody clas tyvars dfun_ev_vars inst_tys
              <- checkInstConstraints $
                 tcMethodBodyHelp sig_fn sel_id local_meth_id (L bind_loc lm_bind)
 
-       ; global_meth_id <- addInlinePrags global_meth_id prags
+       ; global_meth_id <- addIdPrags global_meth_id prags
        ; spec_prags     <- tcSpecPrags global_meth_id prags
 
         ; let specs  = mk_meth_spec_prags global_meth_id spec_inst_prags spec_prags

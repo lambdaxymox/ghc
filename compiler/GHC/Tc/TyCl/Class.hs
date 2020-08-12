@@ -248,7 +248,7 @@ tcDefMeth clas tyvars this_dict binds_in hs_sig_fn prag_fn
          --    $gm x y = x==y
 
          global_dm_id  <- tcLookupId dm_name
-       ; global_dm_id  <- addInlinePrags global_dm_id prags
+       ; global_dm_id  <- addIdPrags global_dm_id prags
        ; local_dm_name <- newNameAt (getOccName sel_name) bndr_loc
             -- Base the local_dm_name on the selector name, because
             -- type errors from tcInstanceMethodBody come from here

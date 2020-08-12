@@ -353,6 +353,7 @@ data IfaceInfoItem
   | HsNoCafRefs
   | HsLevity                         -- Present <=> never levity polymorphic
   | HsLFInfo        IfaceLFInfo
+  | HsWantsCallerCc
 
 -- NB: Specialisations and rules come in separately and are
 -- only later attached to the Id.  Partial reason: some are orphans.
@@ -1460,6 +1461,7 @@ instance Outputable IfaceInfoItem where
   ppr HsNoCafRefs           = text "HasNoCafRefs"
   ppr HsLevity              = text "Never levity-polymorphic"
   ppr (HsLFInfo lf_info)    = text "LambdaFormInfo:" <+> ppr lf_info
+  ppr HsWantsCallerCc       = text "WantsCallerCC"
 
 instance Outputable IfaceJoinInfo where
   ppr IfaceNotJoinPoint   = empty
@@ -2223,6 +2225,7 @@ instance Binary IfaceInfoItem where
     put_ bh HsLevity              = putByte bh 5
     put_ bh (HsCpr cpr)           = putByte bh 6 >> put_ bh cpr
     put_ bh (HsLFInfo lf_info)    = putByte bh 7 >> put_ bh lf_info
+    put_ bh HsWantsCallerCc       = putByte bh 8
 
     get bh = do
         h <- getByte bh
@@ -2236,7 +2239,9 @@ instance Binary IfaceInfoItem where
             4 -> return HsNoCafRefs
             5 -> return HsLevity
             6 -> HsCpr <$> get bh
-            _ -> HsLFInfo <$> get bh
+            7 -> HsLFInfo <$> get bh
+            8 -> return HsWantsCallerCc
+            _ -> fail "Binary(IfaceInfoItem): Invalid value"
 
 instance Binary IfaceUnfolding where
     put_ bh (IfCoreUnfold s e) = do

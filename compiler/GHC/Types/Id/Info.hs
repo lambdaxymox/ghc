@@ -287,8 +287,8 @@ data IdInfo
 -- - Bit   0   (1):  OneShotInfo
 -- - Bit   1   (1):  CafInfo
 -- - Bit   2   (1):  LevityInfo
--- - Bits  3-32(30): Call Arity info
--- - Bits 33-62(30): Arity info
+-- - Bits 13-33(20): Call Arity info
+-- - Bits 43-63(20): Arity info
 --
 newtype BitField = BitField Word64
 

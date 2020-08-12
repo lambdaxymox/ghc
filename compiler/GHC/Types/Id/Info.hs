@@ -287,8 +287,8 @@ data IdInfo
 -- - Bit   0   (1):  OneShotInfo
 -- - Bit   1   (1):  CafInfo
 -- - Bit   2   (1):  LevityInfo
--- - Bits 13-33(20): Call Arity info
--- - Bits 43-63(20): Arity info
+-- - Bits 16-32(16): Call Arity info
+-- - Bits 32-48(16): Arity info
 --
 newtype BitField = BitField Word64
 
@@ -308,12 +308,12 @@ bitfieldGetLevityInfo (BitField bits) =
     if testBit bits 2 then NeverLevityPolymorphic else NoLevityInfo
 
 bitfieldGetCallArityInfo :: BitField -> ArityInfo
-bitfieldGetCallArityInfo (BitField bits) =
-    fromIntegral (bits `shiftR` 3) .&. ((1 `shiftL` 30) - 1)
+bitfieldGetCallArityInfo bf =
+    fromIntegral $ getBits bitRangeCallArityInfo bf
 
 bitfieldGetArityInfo :: BitField -> ArityInfo
-bitfieldGetArityInfo (BitField bits) =
-    fromIntegral (bits `shiftR` 33)
+bitfieldGetArityInfo bf =
+    fromIntegral $ getBits bitRangeArityInfo bf
 
 bitfieldSetOneShotInfo :: OneShotInfo -> BitField -> BitField
 bitfieldSetOneShotInfo info (BitField bits) =
@@ -334,15 +334,37 @@ bitfieldSetLevityInfo info (BitField bits) =
       NeverLevityPolymorphic -> BitField (setBit bits 2)
 
 bitfieldSetCallArityInfo :: ArityInfo -> BitField -> BitField
-bitfieldSetCallArityInfo info bf@(BitField bits) =
-    ASSERT(info < 2^(30 :: Int) - 1)
-    bitfieldSetArityInfo (bitfieldGetArityInfo bf) $
-    BitField ((fromIntegral info `shiftL` 3) .|. (bits .&. 0b111))
+bitfieldSetCallArityInfo info bf =
+    setBits bitRangeCallArityInfo (fromIntegral info) bf
 
 bitfieldSetArityInfo :: ArityInfo -> BitField -> BitField
-bitfieldSetArityInfo info (BitField bits) =
-    ASSERT(info < 2^(30 :: Int) - 1)
-    BitField ((fromIntegral info `shiftL` 33) .|. (bits .&. ((1 `shiftL` 33) - 1)))
+bitfieldSetArityInfo info bf =
+    setBits bitRangeArityInfo (fromIntegral info) bf
+
+bitRangeArityInfo, bitRangeCallArityInfo
+  :: BitRange
+bitRangeArityInfo = BitRange 32 16
+bitRangeCallArityInfo = BitRange 16 16
+
+-- | A span of bits in a 'BitField'.
+data BitRange = BitRange { brShift :: !Int
+                         , brLen :: !Int }
+
+-- | Set the bits denoted by 'BitRange' in a 'BitField'.
+setBits :: BitRange -> Word64 -> BitField -> BitField
+setBits (BitRange bit0 len) val (BitField bits) =
+    ASSERT(fromIntegral val < (2^len - 1))
+    BitField bits'
+  where
+    bits' = (bits .&. complement mask) .|. (val `shiftL` bit0)
+    mask = (1 `shiftL` len - 1) `shiftL` bit0
+
+-- | Extract the bits denoted by a 'BitRange' in a 'BitField'.
+getBits :: BitRange -> BitField -> Word64
+getBits (BitRange bit0 len) (BitField bits) =
+    (bits  `shiftR` bit0) .&. mask
+  where
+    mask = 1 `shiftL` len - 1
 
 -- Getters
 

@@ -469,6 +469,7 @@ instance Outputable IdInfo where
     , (has_str_info,     text "Str=" <> pprStrictness str_info)
     , (has_unf,          text "Unf=" <> ppr unf_info)
     , (has_rules,        text "RULES:" <+> vcat (map pprRule rules))
+    , (wants_caller_cc,  text "CALLER_CC")
     ]
     where
       prag_info = inlinePragInfo info
@@ -500,6 +501,8 @@ instance Outputable IdInfo where
 
       rules = ruleInfoRules (ruleInfo info)
       has_rules = not (null rules)
+
+      wants_caller_cc = case callerCcInfo info of WantsCallerCc -> True; _ -> False
 
 {-
 -----------------------------------------------------

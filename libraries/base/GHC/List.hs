@@ -1003,6 +1003,7 @@ reverse l =  rev l []
     rev []     a = a
     rev (x:xs) a = rev xs (x:a)
 #endif
+{-# CALLER_CC reverse #-}
 
 -- | 'and' returns the conjunction of a Boolean list. For the result to be
 -- 'True', the list must be finite; 'False', however, results from a 'False'

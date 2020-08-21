@@ -45,7 +45,7 @@ import GHC.Core.Multiplicity
 import GHC.Driver.Session
 import GHC.Driver.Backend
 import GHC.Driver.Ppr
-import GHC.Types.Var ( TyVar, Specificity(..), tyVarKind, binderVars )
+import GHC.Types.Var ( TyVar, Specificity(..), tyVarKind, binderVars, idInfo )
 import GHC.Types.Id  ( Id, idName, idType, mkLocalId,
                        idInlinePragma, setInlinePragma, setIdCallerCcInfo )
 import GHC.Types.Id.Info ( CallerCcInfo(..) )
@@ -602,8 +602,11 @@ lhsBindArity _ env = env        -- PatBind/VarBind
 -- | Attach information from pragmas to an 'Id'\'s 'IdInfo'.
 addIdPrags :: TcId -> [LSig GhcRn] -> TcM TcId
 addIdPrags poly_id prags_for_me
-  = do poly_id' <- addCallerCcPrag poly_id prags_for_me
-       addInlinePrags poly_id' prags_for_me
+  = do pprTraceM "addIdPrags" (ppr poly_id $$ ppr prags_for_me)
+       poly_id' <- addCallerCcPrag poly_id prags_for_me
+       poly_id'' <- addInlinePrags poly_id' prags_for_me
+       pprTraceM "addIdPrags'" (ppr (idInfo poly_id''))
+       return poly_id''
 
 addCallerCcPrag :: TcId -> [LSig GhcRn] -> TcM TcId
 addCallerCcPrag poly_id prags_for_me

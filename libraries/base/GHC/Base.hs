@@ -1244,6 +1244,7 @@ map :: (a -> b) -> [a] -> [b]
   -- but saying so is more explicit, and silences warnings
 map _ []     = []
 map f (x:xs) = f x : map f xs
+{-# CALLER_CC map #-}
 
 -- Note eta expanded
 mapFB ::  (elt -> lst -> lst) -> (a -> elt) -> a -> lst -> lst

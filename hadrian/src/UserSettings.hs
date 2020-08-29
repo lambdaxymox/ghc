@@ -35,11 +35,7 @@ userFlavours = [userFlavour] -- Add more build flavours if need be.
 -- | This is an example user-defined build flavour. Feel free to modify it and
 -- use by passing @--flavour=user@ from the command line.
 userFlavour :: Flavour
-userFlavour = profiledFlavour { name = "user"
-                             , args = args defaultFlavour <> mconcat
-                                [ package compiler ? stage Stage2 ? builder (Cabal Flags) ? arg "bottom-up"
-                                ]
-                             } -- Modify other settings here.
+userFlavour = profiledFlavour { name = "user" } -- Modify other settings here.
 
 -- | Add user-defined packages. Note, this only lets Hadrian know about the
 -- existence of a new package; to actually build it you need to create a new

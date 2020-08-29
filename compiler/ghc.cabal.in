@@ -53,11 +53,6 @@ Flag dynamic-system-linker
     Default: True
     Manual: False
 
-Flag bottom-up
-    Description: Enable bottom-up profiling
-    Default: False
-    Manual: True
-
 Library
     Default-Language: Haskell2010
     Exposed: False
@@ -80,9 +75,6 @@ Library
                    ghc-boot-th == @ProjectVersionMunged@,
                    ghc-heap   == @ProjectVersionMunged@,
                    ghci == @ProjectVersionMunged@
-
-    if flag(bottom-up)
-        Build-Depends: bottom-up
 
     if os(windows)
         Build-Depends: Win32  >= 2.3 && < 2.7
@@ -442,7 +434,7 @@ Library
         GHC.Core.Opt.Simplify.Monad
         GHC.Core.Opt.Simplify.Utils
         GHC.Core.Opt.Simplify
-        GHC.Core.AddCallerCcs
+        GHC.Core.Opt.CallerCC
         GHC.Stg.Pipeline
         GHC.Stg.Stats
         GHC.Stg.CSE

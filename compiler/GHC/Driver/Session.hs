@@ -268,6 +268,7 @@ import GHC.Data.FastString
 import GHC.Utils.Fingerprint
 import GHC.Utils.Outputable
 import GHC.Settings
+import {-# SOURCE #-} GHC.Core.Opt.CallerCC
 
 import {-# SOURCE #-} GHC.Utils.Error
                                ( Severity(..), MsgDoc, mkLocMessageAnn
@@ -732,6 +733,7 @@ data DynFlags = DynFlags {
 
   -- | what kind of {-# SCC #-} to add automatically
   profAuto              :: ProfAuto,
+  callerCcFilters       :: [CallerCcFilter],
 
   interactivePrint      :: Maybe String,
 
@@ -1408,6 +1410,7 @@ defaultDynFlags mySettings llvmConfig =
         canUseColor = False,
         colScheme = Col.defaultScheme,
         profAuto = NoProfAuto,
+        callerCcFilters = [],
         interactivePrint = Nothing,
         nextWrapperNum = panic "defaultDynFlags: No nextWrapperNum",
         sseVersion = Nothing,
@@ -3013,6 +3016,10 @@ dynamic_flags_deps = [
   , make_ord_flag defGhcFlag "fno-prof-auto"
       (noArg (\d -> d { profAuto = NoProfAuto } ))
 
+        -- Caller-CC
+  , make_ord_flag defGhcFlag "fprof-caller"
+         (HasArg setCallerCcFilters)
+
         ------ Compiler flags -----------------------------------------------
 
   , make_ord_flag defGhcFlag "fasm"             (NoArg (setObjBackend NCG))
@@ -4562,6 +4569,12 @@ checkOptLevel n dflags
      = Left "-O conflicts with --interactive; -O ignored."
    | otherwise
      = Right dflags
+
+setCallerCcFilters :: String -> DynP ()
+setCallerCcFilters arg =
+  case parseCallerCcFilter arg of
+    Right filt -> upd $ \d -> d { callerCcFilters = filt : callerCcFilters d }
+    Left err -> addErr err
 
 setMainIs :: String -> DynP ()
 setMainIs arg

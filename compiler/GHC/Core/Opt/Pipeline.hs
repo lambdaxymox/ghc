@@ -50,7 +50,7 @@ import GHC.Core.Opt.CprAnal      ( cprAnalProgram )
 import GHC.Core.Opt.CallArity    ( callArityAnalProgram )
 import GHC.Core.Opt.Exitify      ( exitifyProgram )
 import GHC.Core.Opt.WorkWrap     ( wwTopBinds )
-import GHC.Core.AddCallerCcs     ( addCallerCcs )
+import GHC.Core.Opt.CallerCC     ( addCallerCostCentres )
 import GHC.Types.SrcLoc
 import GHC.Utils.Misc
 import GHC.Unit.Module.Env
@@ -208,12 +208,16 @@ getCoreToDo dflags
           }
         ]
 
+    add_caller_ccs =
+        runWhen (profiling && not (null $ callerCcFilters dflags)) CoreAddCallerCcs
+
     core_todo =
      if opt_level == 0 then
        [ static_ptrs_float_outwards,
          CoreDoSimplify max_iter
              (base_mode { sm_phase = FinalPhase
                         , sm_names = ["Non-opt simplification"] })
+       , add_caller_ccs
        ]
 
      else {- opt_level >= 1 -} [
@@ -354,7 +358,7 @@ getCoreToDo dflags
 
         maybe_rule_check FinalPhase,
 
-        runWhen profiling CoreAddCallerCcs
+        add_caller_ccs
      ]
 
     -- Remove 'CoreDoNothing' and flatten 'CoreDoPasses' for clarity.
@@ -472,7 +476,7 @@ doCorePass CoreDoSpecialising        = {-# SCC "Specialise" #-}
 doCorePass CoreDoSpecConstr          = {-# SCC "SpecConstr" #-}
                                        specConstrProgram
 doCorePass CoreAddCallerCcs          = {-# SCC "AddCallerCcs" #-}
-                                       addCallerCcs
+                                       addCallerCostCentres
 
 doCorePass CoreDoPrintCore              = observe   printCore
 doCorePass (CoreDoRuleCheck phase pat)  = ruleCheckPass phase pat

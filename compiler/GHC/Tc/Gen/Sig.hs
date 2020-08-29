@@ -602,10 +602,8 @@ lhsBindArity _ env = env        -- PatBind/VarBind
 -- | Attach information from pragmas to an 'Id'\'s 'IdInfo'.
 addIdPrags :: TcId -> [LSig GhcRn] -> TcM TcId
 addIdPrags poly_id prags_for_me
-  = do pprTraceM "addIdPrags" (ppr poly_id $$ ppr prags_for_me)
-       poly_id' <- addCallerCcPrag poly_id prags_for_me
+  = do poly_id' <- addCallerCcPrag poly_id prags_for_me
        poly_id'' <- addInlinePrags poly_id' prags_for_me
-       pprTraceM "addIdPrags'" (ppr (idInfo poly_id''))
        return poly_id''
 
 addCallerCcPrag :: TcId -> [LSig GhcRn] -> TcM TcId
@@ -621,8 +619,7 @@ addCallerCcPrag poly_id prags_for_me
 addInlinePrags :: TcId -> [LSig GhcRn] -> TcM TcId
 addInlinePrags poly_id prags_for_me
   | inl@(L _ prag) : inls <- inl_prags
-  = do { traceTc "addIdPrags" (ppr poly_id $$ ppr prag)
-       ; unless (null inls) (warn_multiple_inlines inl inls)
+  = do { unless (null inls) (warn_multiple_inlines inl inls)
        ; return (poly_id `setInlinePragma` prag) }
   | otherwise
   = return poly_id

@@ -15,7 +15,9 @@ module UserSettings (
     ) where
 
 import Flavour
+import Settings.Flavours.Profiled
 import Expression
+import Packages
 import {-# SOURCE #-} Settings.Default
 
 -- See doc/user-settings.md for instructions.
@@ -24,7 +26,7 @@ import {-# SOURCE #-} Settings.Default
 -- | Name of the default flavour, i.e the one used when no --flavour=<name>
 --   argument is passed to Hadrian.
 userDefaultFlavour :: String
-userDefaultFlavour = "default"
+userDefaultFlavour = "user"
 
 -- | User-defined build flavours. See 'userFlavour' as an example.
 userFlavours :: [Flavour]
@@ -33,7 +35,11 @@ userFlavours = [userFlavour] -- Add more build flavours if need be.
 -- | This is an example user-defined build flavour. Feel free to modify it and
 -- use by passing @--flavour=user@ from the command line.
 userFlavour :: Flavour
-userFlavour = defaultFlavour { name = "user" } -- Modify other settings here.
+userFlavour = profiledFlavour { name = "user"
+                             , args = args defaultFlavour <> mconcat
+                                [ package compiler ? stage Stage2 ? builder (Cabal Flags) ? arg "bottom-up"
+                                ]
+                             } -- Modify other settings here.
 
 -- | Add user-defined packages. Note, this only lets Hadrian know about the
 -- existence of a new package; to actually build it you need to create a new

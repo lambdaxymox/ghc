@@ -8,7 +8,8 @@ module Packages (
     hsc2hs, hp2ps, hpc, hpcBin, integerGmp, integerSimple, iserv, iservProxy,
     libffi, libiserv, mtl, parsec, pretty, primitive, process, remoteIserv, rts,
     runGhc, stm, templateHaskell, terminfo, text, time, timeout, touchy,
-    transformers, unlit, unix, win32, xhtml, ghcPackages, isGhcPackage,
+    transformers, unlit, unix, win32, xhtml, bottomUp,
+    ghcPackages, isGhcPackage,
 
     -- * Package information
     programName, nonHsMainPackage, autogenPath, programPath, timeoutPath,
@@ -38,7 +39,7 @@ ghcPackages =
     , hp2ps, hpc, hpcBin, integerGmp, integerSimple, iserv, libffi, libiserv, mtl
     , parsec, pretty, process, rts, runGhc, stm, templateHaskell
     , terminfo, text, time, touchy, transformers, unlit, unix, win32, xhtml
-    , timeout ]
+    , timeout, bottomUp ]
 
 -- TODO: Optimise by switching to sets of packages.
 isGhcPackage :: Package -> Bool
@@ -103,6 +104,7 @@ unlit               = util "unlit"
 unix                = lib  "unix"
 win32               = lib  "Win32"
 xhtml               = lib  "xhtml"
+bottomUp            = lib  "bottom-up"       `setPath` "bottom-up-plugin"
 
 -- | Construct a library package, e.g. @array@.
 lib :: PackageName -> Package

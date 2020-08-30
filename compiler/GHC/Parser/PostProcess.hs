@@ -2929,7 +2929,7 @@ circ = noLoc $ HsVar  noExtField (noLoc $ mkRdrUnqual (mkVarOcc "."))
 -- mkProj rhs fIELD calculates a projection.
 -- e.g. .x = mkProj Nothing x = \z -> z.x = \z -> (getField @fIELD x)
 --      .x.y = mkProj Just(.x) y = (.y) . (.x) = (\z -> z.y) . (\z -> z.x)
-mkProj :: Maybe (LHsExpr GhcPs) -> FastString -> LHsExpr GhcPs
+mkProj :: Maybe (LHsExpr GhcPs) -> Located FastString -> LHsExpr GhcPs
 mkProj rhs fIELD =
   let body = mkGet zVar fIELD
       grhs = noLoc $ GRHS noExtField [] body
@@ -2940,19 +2940,19 @@ mkProj rhs fIELD =
 
 -- mkGet arg fIELD calcuates a get_field @fIELD arg expression.
 -- e.g. z.x = mkGet z x = get_field @x z
-mkGet :: LHsExpr GhcPs -> FastString -> LHsExpr GhcPs
+mkGet :: LHsExpr GhcPs -> Located FastString -> LHsExpr GhcPs
 mkGet arg fIELD = head $ mkGet' [arg] fIELD
-mkGet' :: [LHsExpr GhcPs] -> FastString -> [LHsExpr GhcPs]
-mkGet' l@(r : _) fIELD = get_field `mkAppType` mkSelector fIELD `mkApp` mkParen r : l
+mkGet' :: [LHsExpr GhcPs] -> Located FastString -> [LHsExpr GhcPs]
+mkGet' l@(r : _) (L _ fIELD) = get_field `mkAppType` mkSelector fIELD `mkApp` mkParen r : l
 mkGet' [] _ = panic "mkGet' : The impossible has happened!"
 
 -- mkSet a fIELD b calculates a set_field @fIELD expression.
 -- e.g mkSet a fIELD b = set_field @"fIELD" a b (read as "set field 'fIELD' on a to b").
-mkSet :: LHsExpr GhcPs -> FastString -> LHsExpr GhcPs -> LHsExpr GhcPs
-mkSet a fIELD b = set_field `mkAppType` mkSelector fIELD `mkApp` a `mkApp` b
+mkSet :: LHsExpr GhcPs -> Located FastString -> LHsExpr GhcPs -> LHsExpr GhcPs
+mkSet a (L _ fIELD) b = set_field `mkAppType` mkSelector fIELD `mkApp` a `mkApp` b
 
 -- mkFieldUpdater calculates functions representing dot notation record updates.
-mkFieldUpdater :: [FastString] -> LHsExpr GhcPs -> (LHsExpr GhcPs -> LHsExpr GhcPs)
+mkFieldUpdater :: [Located FastString] -> LHsExpr GhcPs -> (LHsExpr GhcPs -> LHsExpr GhcPs)
 mkFieldUpdater -- e.g {foo.bar.baz.quux = 43}
   fIELDS -- [foo, bar, baz, quux]
   arg -- This is 'texp' (43 in the example).
@@ -2967,26 +2967,26 @@ mkFieldUpdater -- e.g {foo.bar.baz.quux = 43}
     in \a -> foldl' mkSet' arg (zips a)
           -- setField@"foo" (a) (setField@"bar" (getField @"foo" (a))(setField@"baz" (getField @"bar" (getField @"foo" (a)))(setField@"quux" (getField @"baz" (getField @"bar" (getField @"foo" (a))))(quux))))
     where
-      mkSet' :: LHsExpr GhcPs -> (FastString, LHsExpr GhcPs) -> LHsExpr GhcPs
+      mkSet' :: LHsExpr GhcPs -> (Located FastString, LHsExpr GhcPs) -> LHsExpr GhcPs
       mkSet' acc (fIELD, g) = mkSet (mkParen g) fIELD (mkParen acc)
 
 -- Called from mkRdrRecordUpd.
 mkSetField :: LHsExpr GhcPs -> LHsRecUpdField GhcPs -> LHsExpr GhcPs
-mkSetField e (L _ (HsRecField occ arg _)) = mkSet e (fsLit $ field occ) (val arg)
+mkSetField e (L _ (HsRecField occ arg _)) =
+  let (loc, f) = field occ in  mkSet e (L loc (fsLit f)) (val arg)
   where
     val :: LHsExpr GhcPs -> LHsExpr GhcPs
-    val arg = if isPun arg then mkVar $ field occ else arg
+    val arg = if isPun arg then mkVar $ snd (field occ) else arg
 
     isPun :: LHsExpr GhcPs -> Bool
     isPun = \case
       L _ (HsVar _ (L _ p)) -> p == pun_RDR
       _ -> False
 
-    field :: Located (AmbiguousFieldOcc GhcPs) -> String
+    field :: Located (AmbiguousFieldOcc GhcPs) -> (SrcSpan, String)
     field = \case
-        L _ (Ambiguous _ (L _ lbl)) ->  occNameString . rdrNameOcc $ lbl
-        L _ (Unambiguous _ (L _ lbl)) -> occNameString . rdrNameOcc $ lbl
-        _ -> "" -- Extension ctor.
+        L _ (Ambiguous _ (L loc lbl)) ->  (loc, occNameString . rdrNameOcc $ lbl)
+        L _ (Unambiguous _ (L loc lbl)) -> (loc, occNameString . rdrNameOcc $ lbl)
 
 applyFieldUpdates :: LHsExpr GhcPs -> [LHsExpr GhcPs -> LHsExpr GhcPs] -> P (LHsExpr GhcPs)
 applyFieldUpdates a updates = return $ foldl' apply a updates

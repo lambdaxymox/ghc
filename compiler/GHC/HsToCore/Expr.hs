@@ -269,6 +269,10 @@ dsExpr (HsConLikeOut _ con)   = dsConLike con
 dsExpr (HsIPVar {})           = panic "dsExpr: HsIPVar"
 dsExpr (HsOverLabel{})        = panic "dsExpr: HsOverLabel"
 
+-- I feel these should have been eliminated by their equivalent
+-- getField expressions by now.
+dsExpr (GetField{})           = panic "dsExpr: GetField"
+
 dsExpr (HsLit _ lit)
   = do { warnAboutOverflowedLit lit
        ; dsLit (convertLit lit) }

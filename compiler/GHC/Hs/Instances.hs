@@ -345,6 +345,7 @@ deriving instance Data (ArithSeqInfo GhcTc)
 
 deriving instance Data RecordConTc
 deriving instance Data RecordUpdTc
+deriving instance Data GetFieldTc
 deriving instance Data CmdTopTc
 deriving instance Data PendingRnSplice
 deriving instance Data PendingTcSplice

@@ -457,6 +457,21 @@ data HsExpr p
   -- For a type family, the arg types are of the *instance* tycon,
   -- not the family tycon
 
+  -- | Record projections
+
+  -- A get_field @fIELD arg expression.
+  -- e.g. z.x = GetField {
+  --   gf_ext=noExtField, gf_expr=z, gf_fIELD=x, gf_getField = getField @"x" z
+  --  }.
+  | GetField
+       { gf_ext :: XGetField p
+       , gf_expr :: LHsExpr p
+       , gf_fIELD :: Located FastString
+       , gf_getField :: LHsExpr p -- Equivalent 'getField' term.
+       }
+  -- Expressions of this case only arise when the RecordDotSyntax
+  -- langauge extensions is enabled.
+
   -- | Expression with an explicit type signature. @e :: type@
   --
   --  - 'GHC.Parser.Annotation.AnnKeywordId' : 'GHC.Parser.Annotation.AnnDcolon'
@@ -580,6 +595,9 @@ data RecordUpdTc = RecordUpdTc
       , rupd_wrap :: HsWrapper  -- See note [Record Update HsWrapper]
       }
 
+-- | Extra data fields for a 'GetField', added by the type checker
+data GetFieldTc = GetFieldTc
+
 -- | HsWrap appears only in typechecker output
 -- Invariant: The contained Expr is *NOT* itself an HsWrap.
 -- See Note [Detecting forced eta expansion] in "GHC.HsToCore.Expr".
@@ -647,6 +665,10 @@ type instance XRecordCon     GhcTc = RecordConTc
 type instance XRecordUpd     GhcPs = NoExtField
 type instance XRecordUpd     GhcRn = NoExtField
 type instance XRecordUpd     GhcTc = RecordUpdTc
+
+type instance XGetField     GhcPs = NoExtField
+type instance XGetField     GhcRn = NoExtField
+type instance XGetField     GhcTc = GetFieldTc
 
 type instance XExprWithTySig (GhcPass _) = NoExtField
 
@@ -1193,6 +1215,9 @@ ppr_expr (RecordCon { rcon_con_name = con_id, rcon_flds = rbinds })
 ppr_expr (RecordUpd { rupd_expr = L _ aexp, rupd_flds = rbinds })
   = hang (ppr aexp) 2 (braces (fsep (punctuate comma (map ppr rbinds))))
 
+ppr_expr (GetField { gf_expr = L _ fexp, gf_fIELD = field, gf_getField = _})
+  = ppr fexp <> dot <> ppr field
+
 ppr_expr (ExprWithTySig _ expr sig)
   = hang (nest 2 (ppr_lexpr expr) <+> dcolon)
          4 (ppr sig)
@@ -1347,6 +1372,10 @@ hsExprNeedsParens p = go
     go (HsBinTick _ _ _ (L _ e))      = go e
     go (RecordCon{})                  = False
     go (HsRecFld{})                   = False
+    -- To be honest I'm not sure right now but we know that projection
+    -- has higher precedence than application since f r.a.b parses as
+    -- f (r.a.b) so I'm going to with False for the moment.
+    go (GetField{})                   = False
     go (XExpr x)
       | GhcTc <- ghcPass @p
       = case x of

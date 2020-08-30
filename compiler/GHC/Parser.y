@@ -3281,13 +3281,13 @@ pbind  :: { LHsExpr GhcPs -> LHsExpr GhcPs }
                     ; let { ; top = $1 -- foo
                             ; fields = top : reverse $3 -- [foo, bar, baz, quux]
                             ; final = last fields  -- quux
-                            ; arg = mkVar $ unpackFS final
+                            ; arg = mkVar $ unpackFS (unLoc final)
                           }
                     ; return $ mkFieldUpdater fields arg
                   }
          }}
 
-fieldToUpdate :: { [FastString] }
+fieldToUpdate :: { [Located FastString] }
 fieldToUpdate
         -- See Note [Whitespace-sensitive operator parsing] in Lexer.x
         : fieldToUpdate TIGHT_INFIX_PROJ field { $3 : $1 }
@@ -3585,9 +3585,9 @@ qvar    :: { Located RdrName }
 -- whether it's a qvar or a var can be postponed until
 -- *after* we see the close paren.
 
-field :: { FastString  }
-      : VARID { getVARID $1 }
-      | QVARID { snd $ getQVARID $1 }
+field :: { Located FastString  }
+      : VARID { sL1 $1 $! getVARID $1 }
+      | QVARID { sL1 $1 $! snd $ getQVARID $1 }
 
 qvarid :: { Located RdrName }
         : varid               { $1 }

@@ -2723,7 +2723,6 @@ aexp1   :: { ECP }
                                   $3 >>= \ $3 ->
                                   amms (mkHsRecordPV dot (comb2 $1 $>) (comb2 $2 $4) $1 (snd $3))
                                        (moc $2:mcc $4:(fst $3)) }
-        | aexp1 '{' pbinds '}' {% runPV (unECP $1) >>= \ $1 -> fmap ecpFromExp $ applyFieldUpdates $1 $3 }
         | aexp2                { $1 }
 
 aexp2   :: { ECP }
@@ -3231,7 +3230,7 @@ fbinds1 :: { forall b. DisambECP b => PV ([AddAnn],([Fbind b], Maybe SrcSpan)) }
         : fbind ',' fbinds1
                  { $1 >>= \ $1 ->
                    $3 >>= \ $3 ->
-                   addAnnotation (gl (fbindToRecField $1)) AnnComma (gl $2) >>
+                   -- addAnnotation (gl (fbindToRecField $1)) AnnComma (gl $2) >>
                    return (case $3 of (ma,(flds, dd)) -> (ma,($1 : flds, dd))) }
         | fbind                         { $1 >>= \ $1 ->
                                           return ([],([$1], Nothing)) }
@@ -3253,42 +3252,30 @@ fbind   :: { forall b. DisambECP b => PV (Fbind b) }
                         -- In the punning case, use a place-holder
                         -- The renamer fills in the final value
 
------------------------------------------------------------------------------
--- Nested updates (strictly expressions; patterns do not participate in updates).
-
-pbinds  :: { [LHsExpr GhcPs -> LHsExpr GhcPs] }
-        : pbinds1           { $1 }
-
-pbinds1 :: { [LHsExpr GhcPs -> LHsExpr GhcPs] }
-        : pbind ',' pbinds1 { $1 : $3 }
-        | pbind             { [$1] }
-
-pbind  :: { LHsExpr GhcPs -> LHsExpr GhcPs }
         -- See Note [Whitespace-sensitive operator parsing] in Lexer.x
-       : field TIGHT_INFIX_PROJ fieldToUpdate '=' texp
-         {%do { ; let { top = $1 -- foo
-                      ; fields = top : reverse $3 -- [foo, bar, baz, quux]
-                      }
-                ; arg <- runPV (unECP $5)
-                ; return $ mkFieldUpdater fields arg
-         }}
+        | field TIGHT_INFIX_PROJ fieldToUpdate '=' texp
+           { unECP $5 >>= \ $5 ->
+             mkHsFieldUpdaterPV ($1 : reverse $3) $5 >>= \ up ->
+             return $ Pbind up
+           }
+
         -- See Note [Whitespace-sensitive operator parsing] in Lexer.x
-      | field TIGHT_INFIX_PROJ fieldToUpdate
-         {%do { ; recordPuns <- getBit RecordPunsBit
-                ; if not recordPuns
-                  then do {
-                    ; addFatalError noSrcSpan $
-                        text "For this to work, enable NamedFieldPuns."
-                  }
-                  else do {
-                    ; let { ; top = $1 -- foo
-                            ; fields = top : reverse $3 -- [foo, bar, baz, quux]
-                            ; final = last fields  -- quux
-                            ; arg = mkVar $ unpackFS (unLoc final)
-                          }
-                    ; return $ mkFieldUpdater fields arg
-                  }
-         }}
+        | field TIGHT_INFIX_PROJ fieldToUpdate
+           { let { ; top = $1
+                   ; fields = top : reverse $3
+                   ; final = last fields }
+             in
+                getBit RecordPunsBit >>= \ puns ->
+                if puns
+                  then
+                    let arg = mkRdrUnqual . mkVarOcc . unpackFS . unLoc $ final in
+                    mkHsVarPV (noLoc arg) >>= \ var ->
+                    mkHsFieldUpdaterPV fields var >>= \ up ->
+                    return $ Pbind up
+                  else
+                    addFatalError noSrcSpan $
+                      text "For this to work, enable NamedFieldPuns."
+          }
 
 fieldToUpdate :: { [Located FastString] }
 fieldToUpdate

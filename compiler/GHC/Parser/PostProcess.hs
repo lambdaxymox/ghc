@@ -19,7 +19,7 @@
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
 
 module GHC.Parser.PostProcess (
-        mkApp,  mkGet, mkVar, mkFieldUpdater, mkProj, isGet, applyFieldUpdates, -- RecordDot
+        mkApp, mkGet, mkVar, mkFieldUpdater, mkProj, isGet, applyFieldUpdates, Fbind(..), fbindToRecField, -- RecordDot
         mkHsOpApp,
         mkHsIntegral, mkHsFractional, mkHsIsString,
         mkHsDo, mkSpliceDecl,
@@ -152,6 +152,12 @@ import Data.Kind       ( Type )
 
 #include "HsVersions.h"
 
+data Fbind b =
+  Fbind (LHsRecField GhcPs (Located b)) | Pbind (LHsExpr GhcPs -> LHsExpr GhcPs)
+
+fbindToRecField :: Fbind b -> LHsRecField GhcPs (Located b)
+fbindToRecField (Fbind f) = f
+fbindToRecField _ = panic "fbindToRecField: The impossible happened"
 
 {- **********************************************************************
 
@@ -1446,7 +1452,7 @@ class b ~ (Body b) GhcPs => DisambECP b where
     SrcSpan ->
     SrcSpan ->
     Located b ->
-    ([LHsRecField GhcPs (Located b)], Maybe SrcSpan) ->
+    ([Fbind b], Maybe SrcSpan) ->
     PV (Located b)
   -- | Disambiguate "-a" (negation)
   mkHsNegAppPV :: SrcSpan -> Located b -> PV (Located b)
@@ -2335,7 +2341,7 @@ mkRecConstrOrUpdate
         :: Bool
         -> LHsExpr GhcPs
         -> SrcSpan
-        -> ([LHsRecField GhcPs (LHsExpr GhcPs)], Maybe SrcSpan)
+        -> ([Fbind (HsExpr GhcPs)], Maybe SrcSpan)
         -> PV (HsExpr GhcPs)
 
 mkRecConstrOrUpdate _ (L l (HsVar _ (L _ c))) _ (fs,dd)
@@ -2343,7 +2349,7 @@ mkRecConstrOrUpdate _ (L l (HsVar _ (L _ c))) _ (fs,dd)
   = return (mkRdrRecordCon (L l c) (mk_rec_fields fs dd))
 mkRecConstrOrUpdate dot exp _ (fs,dd)
   | Just dd_loc <- dd = addFatalError dd_loc (text "You cannot use `..' in a record update")
-  | otherwise = return (mkRdrRecordUpd dot exp (map (fmap mk_rec_upd_field) fs))
+  | otherwise = return (mkRdrRecordUpd dot exp (map (fmap mk_rec_upd_field) (map fbindToRecField fs)))
 
 mkRdrRecordUpd :: Bool -> LHsExpr GhcPs -> [LHsRecUpdField GhcPs] -> HsExpr GhcPs
 mkRdrRecordUpd dot exp flds
@@ -2357,10 +2363,16 @@ mkRdrRecordCon :: Located RdrName -> HsRecordBinds GhcPs -> HsExpr GhcPs
 mkRdrRecordCon con flds
   = RecordCon { rcon_ext = noExtField, rcon_con_name = con, rcon_flds = flds }
 
-mk_rec_fields :: [Located (HsRecField (GhcPass p) arg)] -> Maybe SrcSpan -> HsRecFields (GhcPass p) arg
-mk_rec_fields fs Nothing = HsRecFields { rec_flds = fs, rec_dotdot = Nothing }
-mk_rec_fields fs (Just s)  = HsRecFields { rec_flds = fs
+
+
+mk_rec_fields :: [Fbind b] -> Maybe SrcSpan -> HsRecFields GhcPs (Located b)
+mk_rec_fields fs Nothing = HsRecFields { rec_flds = map fbindToRecField fs, rec_dotdot = Nothing }
+mk_rec_fields fs (Just s)  = HsRecFields { rec_flds = map fbindToRecField fs
                                      , rec_dotdot = Just (L s (length fs)) }
+-- mk_rec_fields :: [Located (HsRecField (GhcPass p) arg)] -> Maybe SrcSpan -> HsRecFields (GhcPass p) arg
+-- mk_rec_fields fs Nothing = HsRecFields { rec_flds = fs, rec_dotdot = Nothing }
+-- mk_rec_fields fs (Just s)  = HsRecFields { rec_flds = fs
+--                                      , rec_dotdot = Just (L s (length fs)) }
 
 mk_rec_upd_field :: HsRecField GhcPs (LHsExpr GhcPs) -> HsRecUpdField GhcPs
 mk_rec_upd_field (HsRecField (L loc (FieldOcc _ rdr)) arg pun)

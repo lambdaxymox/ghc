@@ -3223,30 +3223,33 @@ qual  :: { forall b. DisambECP b => PV (LStmt GhcPs (Located b)) }
 -----------------------------------------------------------------------------
 -- Record construction (expressions & patterns), top-level updates.
 
-fbinds  :: { forall b. DisambECP b => PV ([AddAnn],([LHsRecField GhcPs (Located b)], Maybe SrcSpan)) }
+fbinds  :: { forall b. DisambECP b => PV ([AddAnn],([Fbind b], Maybe SrcSpan)) }
         : fbinds1                       { $1 }
         | {- empty -}                   { return ([],([], Nothing)) }
 
-fbinds1 :: { forall b. DisambECP b => PV ([AddAnn],([LHsRecField GhcPs (Located b)], Maybe SrcSpan)) }
+fbinds1 :: { forall b. DisambECP b => PV ([AddAnn],([Fbind b], Maybe SrcSpan)) }
         : fbind ',' fbinds1
                  { $1 >>= \ $1 ->
                    $3 >>= \ $3 ->
-                   addAnnotation (gl $1) AnnComma (gl $2) >>
+                   addAnnotation (gl (fbindToRecField $1)) AnnComma (gl $2) >>
                    return (case $3 of (ma,(flds, dd)) -> (ma,($1 : flds, dd))) }
         | fbind                         { $1 >>= \ $1 ->
                                           return ([],([$1], Nothing)) }
         | '..'                          { return ([mj AnnDotdot $1],([],   Just (getLoc $1))) }
 
-fbind   :: { forall b. DisambECP b => PV (LHsRecField GhcPs (Located b)) }
+fbind   :: { forall b. DisambECP b => PV (Fbind b) }
         : qvar '=' texp  { unECP $3 >>= \ $3 ->
-                           ams  (sLL $1 $> $ HsRecField (sL1 $1 $ mkFieldOcc $1) $3 False)
-                                [mj AnnEqual $2] }
+                           return $ Fbind (sLL $1 $> $ HsRecField (sL1 $1 $ mkFieldOcc $1) $3 False)
+                           -- ams  (Fbind (sLL $1 $> $ HsRecField (sL1 $1 $ mkFieldOcc $1) $3 False))
+                           --      [mj AnnEqual $2]
+                          }
                         -- RHS is a 'texp', allowing view patterns (#6038)
                         -- and, incidentally, sections.  Eg
                         -- f (R { x = show -> s }) = ...
 
         | qvar          { placeHolderPunRhs >>= \rhs ->
-                          return $ sLL $1 $> $ HsRecField (sL1 $1 $ mkFieldOcc $1) rhs True }
+                          return $ Fbind (sLL $1 $> $ HsRecField (sL1 $1 $ mkFieldOcc $1) rhs True)
+                        }
                         -- In the punning case, use a place-holder
                         -- The renamer fills in the final value
 

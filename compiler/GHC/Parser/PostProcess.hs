@@ -2343,21 +2343,35 @@ mkRecConstrOrUpdate
         -> SrcSpan
         -> ([Fbind (HsExpr GhcPs)], Maybe SrcSpan)
         -> PV (HsExpr GhcPs)
-
 mkRecConstrOrUpdate _ (L l (HsVar _ (L _ c))) _ (fs,dd)
   | isRdrDataCon c
   = return (mkRdrRecordCon (L l c) (mk_rec_fields fs dd))
 mkRecConstrOrUpdate dot exp _ (fs,dd)
   | Just dd_loc <- dd = addFatalError dd_loc (text "You cannot use `..' in a record update")
-  | otherwise = return (mkRdrRecordUpd dot exp (map (fmap mk_rec_upd_field) (map fbindToRecField fs)))
+  | otherwise = return (mkRdrRecordUpd' dot exp fs)
 
-mkRdrRecordUpd :: Bool -> LHsExpr GhcPs -> [LHsRecUpdField GhcPs] -> HsExpr GhcPs
-mkRdrRecordUpd dot exp flds
-  -- If RecordDotSyntax is in effect produce a set_field expression.
-  | dot = unLoc $ foldl' mkSetField exp flds
-  | otherwise = RecordUpd { rupd_ext  = noExtField
-                          , rupd_expr = exp
-                          , rupd_flds = flds }
+mkRdrRecordUpd' :: Bool -> LHsExpr GhcPs -> [Fbind (HsExpr GhcPs)] -> HsExpr GhcPs
+mkRdrRecordUpd' dot exp fbinds =
+  if not dot
+    then
+      mkRdrRecordUpd exp (map (fmap mk_rec_upd_field) $ map fbindToRecField fbinds)
+    else
+     foldl' fieldUpdate (unLoc exp) fbinds
+  where
+    fieldUpdate :: HsExpr GhcPs -> Fbind (HsExpr GhcPs) -> HsExpr GhcPs
+    fieldUpdate acc f =
+      case f of
+        -- Remember to sort out issues with location info here.
+        Fbind field ->
+          let updField = fmap mk_rec_upd_field field
+          in unLoc $ foldl' mkSetField (noLoc acc) [updField]
+        Pbind fieldUpdater -> unLoc (fieldUpdater (noLoc acc))
+
+mkRdrRecordUpd :: LHsExpr GhcPs -> [LHsRecUpdField GhcPs] -> HsExpr GhcPs
+mkRdrRecordUpd exp flds
+  = RecordUpd { rupd_ext  = noExtField
+              , rupd_expr = exp
+              , rupd_flds = flds }
 
 mkRdrRecordCon :: Located RdrName -> HsRecordBinds GhcPs -> HsExpr GhcPs
 mkRdrRecordCon con flds
@@ -2369,10 +2383,6 @@ mk_rec_fields :: [Fbind b] -> Maybe SrcSpan -> HsRecFields GhcPs (Located b)
 mk_rec_fields fs Nothing = HsRecFields { rec_flds = map fbindToRecField fs, rec_dotdot = Nothing }
 mk_rec_fields fs (Just s)  = HsRecFields { rec_flds = map fbindToRecField fs
                                      , rec_dotdot = Just (L s (length fs)) }
--- mk_rec_fields :: [Located (HsRecField (GhcPass p) arg)] -> Maybe SrcSpan -> HsRecFields (GhcPass p) arg
--- mk_rec_fields fs Nothing = HsRecFields { rec_flds = fs, rec_dotdot = Nothing }
--- mk_rec_fields fs (Just s)  = HsRecFields { rec_flds = fs
---                                      , rec_dotdot = Just (L s (length fs)) }
 
 mk_rec_upd_field :: HsRecField GhcPs (LHsExpr GhcPs) -> HsRecUpdField GhcPs
 mk_rec_upd_field (HsRecField (L loc (FieldOcc _ rdr)) arg pun)

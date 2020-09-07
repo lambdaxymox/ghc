@@ -3220,7 +3220,7 @@ qual  :: { forall b. DisambECP b => PV (LStmt GhcPs (Located b)) }
                                                (mj AnnLet $1:(fst $ unLoc $2)) }
 
 -----------------------------------------------------------------------------
--- Record construction (expressions & patterns), top-level updates.
+-- Record Field Update/Construction
 
 fbinds  :: { forall b. DisambECP b => PV ([AddAnn],([Fbind b], Maybe SrcSpan)) }
         : fbinds1                       { $1 }

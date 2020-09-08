@@ -2717,12 +2717,13 @@ aexp    :: { ECP }
         | aexp1                 { $1 }
 
 aexp1   :: { ECP }
-        : aexp1 '{' fbinds '}' { ECP $
-                                  getBit RecordDotSyntaxBit >>= \ dot ->
-                                  unECP $1 >>= \ $1 ->
-                                  $3 >>= \ $3 ->
-                                  amms (mkHsRecordPV dot (comb2 $1 $>) (comb2 $2 $4) $1 (snd $3))
-                                       (moc $2:mcc $4:(fst $3)) }
+        : aexp1 '{' fbinds '}' {% getBit RecordDotSyntaxBit >>= \ dot ->
+                                  return (ECP $
+                                    unECP $1 >>= \ $1 ->
+                                    $3 >>= \ $3 ->
+                                    amms (mkHsRecordPV dot (comb2 $1 $>) (comb2 $2 $4) $1 (snd $3))
+                                         (moc $2:mcc $4:(fst $3))
+                                  ) }
         | aexp2                { $1 }
 
 aexp2   :: { ECP }
@@ -3239,8 +3240,7 @@ fbinds1 :: { forall b. DisambECP b => PV ([AddAnn],([Fbind b], Maybe SrcSpan)) }
 fbind   :: { forall b. DisambECP b => PV (Fbind b) }
         : qvar '=' texp  { unECP $3 >>= \ $3 ->
                            return $ Fbind (sLL $1 $> $ HsRecField (sL1 $1 $ mkFieldOcc $1) $3 False)
-                           -- ams  (Fbind (sLL $1 $> $ HsRecField (sL1 $1 $ mkFieldOcc $1) $3 False))
-                           --      [mj AnnEqual $2]
+                            -- ams (sLL $1 $> $ HsRecField (sL1 $1 $ mkFieldOcc $1) $3 False) [mj AnnEqual $2]
                           }
                         -- RHS is a 'texp', allowing view patterns (#6038)
                         -- and, incidentally, sections.  Eg
@@ -3255,26 +3255,16 @@ fbind   :: { forall b. DisambECP b => PV (Fbind b) }
         -- See Note [Whitespace-sensitive operator parsing] in Lexer.x
         | field TIGHT_INFIX_PROJ fieldToUpdate '=' texp
            { unECP $5 >>= \ $5 ->
-             mkHsFieldUpdaterPV ($1 : reverse $3) $5 >>= \ up ->
-             return $ Pbind up
+             fmap Pbind $ mkHsFieldUpdaterPV ($1 : reverse $3) $5
            }
 
         -- See Note [Whitespace-sensitive operator parsing] in Lexer.x
         | field TIGHT_INFIX_PROJ fieldToUpdate
            { let { ; top = $1
                    ; fields = top : reverse $3
-                   ; final = last fields }
-             in
-                getBit RecordPunsBit >>= \ puns ->
-                if puns
-                  then
-                    let arg = mkRdrUnqual . mkVarOcc . unpackFS . unLoc $ final in
-                    mkHsVarPV (noLoc arg) >>= \ var ->
-                    mkHsFieldUpdaterPV fields var >>= \ up ->
-                    return $ Pbind up
-                  else
-                    addFatalError noSrcSpan $
-                      text "For this to work, enable NamedFieldPuns."
+                   ; final = last fields } in
+             mkHsVarPV (noLoc (mkRdrUnqual . mkVarOcc . unpackFS . unLoc $ final)) >>= \ var ->
+             fmap Pbind (mkHsFieldUpdaterPV fields var)
           }
 
 fieldToUpdate :: { [Located FastString] }

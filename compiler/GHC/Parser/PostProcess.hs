@@ -19,7 +19,7 @@
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
 
 module GHC.Parser.PostProcess (
-        mkApp, mkGet, mkVar, mkFieldUpdater, mkProj, isGet, applyFieldUpdates, Fbind(..), fbindToRecField, -- RecordDot
+        mkApp, mkGet, mkVar, mkFieldUpdater, mkProj, isGet, applyFieldUpdates, Fbind(..), -- RecordDot
         mkHsOpApp,
         mkHsIntegral, mkHsFractional, mkHsIsString,
         mkHsDo, mkSpliceDecl,
@@ -1393,7 +1393,7 @@ class b ~ (Body b) GhcPs => DisambECP b where
   -- | Return an expression without ambiguity, or fail in a non-expression context.
   ecpFromExp' :: LHsExpr GhcPs -> PV (Located b)
   -- | This can only be satified by expressions.
-  mkHsFieldUpdaterPV :: [Located FastString] -> Located b -> PV (Located b -> Located b)
+  mkHsFieldUpdaterPV :: SrcSpan -> [Located FastString] -> Located b -> PV (Located b -> Located b)
   -- | Disambiguate "\... -> ..." (lambda)
   mkHsLamPV :: SrcSpan -> MatchGroup GhcPs (Located b) -> PV (Located b)
   -- | Disambiguate "let ... in ..."
@@ -1521,9 +1521,9 @@ instance DisambECP (HsCmd GhcPs) where
   type Body (HsCmd GhcPs) = HsCmd
   ecpFromCmd' = return
   ecpFromExp' (L l e) = cmdFail l (ppr e)
-  mkHsFieldUpdaterPV _ _ =
-    cmdFail (noSrcSpan) $
-    text "Trying to make a field update in a command context"
+  mkHsFieldUpdaterPV l _ _ =
+    cmdFail l $
+    text "Field update syntax is not supported in commands."
   mkHsLamPV l mg = return $ L l (HsCmdLam noExtField mg)
   mkHsLetPV l bs e = return $ L l (HsCmdLet noExtField bs e)
   type InfixOp (HsCmd GhcPs) = HsExpr GhcPs
@@ -1587,7 +1587,7 @@ instance DisambECP (HsExpr GhcPs) where
         nest 2 (ppr c) ]
     return (L l hsHoleExpr)
   ecpFromExp' = return
-  mkHsFieldUpdaterPV fields arg = return $ mkFieldUpdater fields arg
+  mkHsFieldUpdaterPV _ fields arg = return $ mkFieldUpdater fields arg
   mkHsLamPV l mg = return $ L l (HsLam noExtField mg)
   mkHsLetPV l bs c = return $ L l (HsLet noExtField bs c)
   type InfixOp (HsExpr GhcPs) = HsExpr GhcPs
@@ -1675,9 +1675,9 @@ instance DisambECP (PatBuilder GhcPs) where
   ecpFromExp' (L l e) =
     addFatalError l $
       text "Expression syntax in pattern:" <+> ppr e
-  mkHsFieldUpdaterPV _ _ =
-    addFatalError noSrcSpan $
-    text "Trying to make a field update in a pattern context"
+  mkHsFieldUpdaterPV l _ _ =
+    addFatalError l $
+    text "Field update syntax is not supported in patterns."
   mkHsLamPV l _ = addFatalError l $
     text "Lambda-syntax in pattern." $$
     text "Pattern matching on functions is not possible."

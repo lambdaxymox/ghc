@@ -3256,7 +3256,7 @@ fbind   :: { forall b. DisambECP b => PV (Fbind b) }
         | field TIGHT_INFIX_PROJ fieldToUpdate '=' texp
            {do
               $5 <- unECP $5
-              fmap Pbind $ mkHsFieldUpdaterPV ($1 : reverse $3) $5
+              fmap Pbind $ mkHsFieldUpdaterPV (comb2 $1 $5) ($1 : reverse $3) $5
            }
 
         -- See Note [Whitespace-sensitive operator parsing] in Lexer.x
@@ -3265,13 +3265,13 @@ fbind   :: { forall b. DisambECP b => PV (Fbind b) }
               let top = $1
                   fields = top : reverse $3
                   final = last fields
-                  (l, fieldName) = (getLoc final, unLoc final)
+                  l = comb2 top final
               puns <- getBit RecordPunsBit
               when (not puns) $
-                addError (comb2 top final) $
+                addError l $
                   text "For this to work, enable NamedFieldPuns."
-              var <- mkHsVarPV (L l (mkRdrUnqual . mkVarOcc . unpackFS $ fieldName))
-              fmap Pbind $ mkHsFieldUpdaterPV fields var
+              var <- mkHsVarPV (noLoc (mkRdrUnqual . mkVarOcc . unpackFS . unLoc $ final))
+              fmap Pbind $ mkHsFieldUpdaterPV l fields var
            }
 
 fieldToUpdate :: { [Located FastString] }

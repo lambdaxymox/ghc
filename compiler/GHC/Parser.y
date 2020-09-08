@@ -2717,13 +2717,13 @@ aexp    :: { ECP }
         | aexp1                 { $1 }
 
 aexp1   :: { ECP }
-        : aexp1 '{' fbinds '}' {% getBit RecordDotSyntaxBit >>= \ dot ->
-                                  return (ECP $
-                                    unECP $1 >>= \ $1 ->
-                                    $3 >>= \ $3 ->
-                                    amms (mkHsRecordPV dot (comb2 $1 $>) (comb2 $2 $4) $1 (snd $3))
-                                         (moc $2:mcc $4:(fst $3))
-                                  ) }
+        : aexp1 '{' fbinds '}' { ECP $
+                                   getBit RecordDotSyntaxBit >>= \ dot ->
+                                   unECP $1 >>= \ $1 ->
+                                   $3 >>= \ $3 ->
+                                   amms (mkHsRecordPV dot (comb2 $1 $>) (comb2 $2 $4) $1 (snd $3))
+                                        (moc $2:mcc $4:(fst $3))
+                               }
         | aexp2                { $1 }
 
 aexp2   :: { ECP }
@@ -3254,18 +3254,25 @@ fbind   :: { forall b. DisambECP b => PV (Fbind b) }
 
         -- See Note [Whitespace-sensitive operator parsing] in Lexer.x
         | field TIGHT_INFIX_PROJ fieldToUpdate '=' texp
-           { unECP $5 >>= \ $5 ->
-             fmap Pbind $ mkHsFieldUpdaterPV ($1 : reverse $3) $5
+           {do
+              $5 <- unECP $5
+              fmap Pbind $ mkHsFieldUpdaterPV ($1 : reverse $3) $5
            }
 
         -- See Note [Whitespace-sensitive operator parsing] in Lexer.x
         | field TIGHT_INFIX_PROJ fieldToUpdate
-           { let { ; top = $1
-                   ; fields = top : reverse $3
-                   ; final = last fields } in
-             mkHsVarPV (noLoc (mkRdrUnqual . mkVarOcc . unpackFS . unLoc $ final)) >>= \ var ->
-             fmap Pbind (mkHsFieldUpdaterPV fields var)
-          }
+           {do
+              let top = $1
+                  fields = top : reverse $3
+                  final = last fields
+                  (l, fieldName) = (getLoc final, unLoc final)
+              puns <- getBit RecordPunsBit
+              when (not puns) $
+                addError (comb2 top final) $
+                  text "For this to work, enable NamedFieldPuns."
+              var <- mkHsVarPV (L l (mkRdrUnqual . mkVarOcc . unpackFS $ fieldName))
+              fmap Pbind $ mkHsFieldUpdaterPV fields var
+           }
 
 fieldToUpdate :: { [Located FastString] }
 fieldToUpdate

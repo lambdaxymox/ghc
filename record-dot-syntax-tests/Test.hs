@@ -112,4 +112,4 @@ main = do
   g <- pure a
   print $ c{f} -- 42, 1
   print $ c{f, g} -- 42, 42
-  print $ c{f, g.foo.bar.baz.quux = 4} -- Can now mix top-level and nested updates!
+  print $ c{f, g.foo.bar.baz.quux = 4} -- Can now mix top-level and nested updates!; 42, 4

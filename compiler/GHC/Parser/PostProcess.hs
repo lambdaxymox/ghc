@@ -1523,7 +1523,7 @@ instance DisambECP (HsCmd GhcPs) where
   ecpFromExp' (L l e) = cmdFail l (ppr e)
   mkHsFieldUpdaterPV l _ _ =
     cmdFail l $
-    text "Field update syntax is not supported in commands."
+    text "Field selector syntax is not supported in commands."
   mkHsLamPV l mg = return $ L l (HsCmdLam noExtField mg)
   mkHsLetPV l bs e = return $ L l (HsCmdLet noExtField bs e)
   type InfixOp (HsCmd GhcPs) = HsExpr GhcPs
@@ -1677,7 +1677,7 @@ instance DisambECP (PatBuilder GhcPs) where
       text "Expression syntax in pattern:" <+> ppr e
   mkHsFieldUpdaterPV l _ _ =
     addFatalError l $
-    text "Field update syntax is not supported in patterns."
+    text "Field selector syntax is not supported in patterns."
   mkHsLamPV l _ = addFatalError l $
     text "Lambda-syntax in pattern." $$
     text "Pattern matching on functions is not possible."

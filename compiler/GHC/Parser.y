@@ -3239,7 +3239,7 @@ fbinds1 :: { forall b. DisambECP b => PV ([AddAnn],([Fbind b], Maybe SrcSpan)) }
 
 fbind   :: { forall b. DisambECP b => PV (Fbind b) }
         : qvar '=' texp  { unECP $3 >>= \ $3 ->
-                           return $ Fbind (sLL $1 $> $ HsRecField (sL1 $1 $ mkFieldOcc $1) $3 False)
+                           fmap Fbind $ return (sLL $1 $> $ HsRecField (sL1 $1 $ mkFieldOcc $1) $3 False)
                             -- ams (sLL $1 $> $ HsRecField (sL1 $1 $ mkFieldOcc $1) $3 False) [mj AnnEqual $2]
                           }
                         -- RHS is a 'texp', allowing view patterns (#6038)
@@ -3247,32 +3247,32 @@ fbind   :: { forall b. DisambECP b => PV (Fbind b) }
                         -- f (R { x = show -> s }) = ...
 
         | qvar          { placeHolderPunRhs >>= \rhs ->
-                          return $ Fbind (sLL $1 $> $ HsRecField (sL1 $1 $ mkFieldOcc $1) rhs True)
+                          fmap Fbind $ return (sLL $1 $> $ HsRecField (sL1 $1 $ mkFieldOcc $1) rhs True)
                         }
                         -- In the punning case, use a place-holder
                         -- The renamer fills in the final value
 
         -- See Note [Whitespace-sensitive operator parsing] in Lexer.x
         | field TIGHT_INFIX_PROJ fieldToUpdate '=' texp
-           {do
-              $5 <- unECP $5
-              fmap Pbind $ mkHsFieldUpdaterPV (comb2 $1 $5) ($1 : reverse $3) $5
-           }
+                        { do
+                            $5 <- unECP $5
+                            fmap Pbind $ mkHsFieldUpdaterPV (comb2 $1 $5) ($1 : reverse $3) $5
+                        }
 
         -- See Note [Whitespace-sensitive operator parsing] in Lexer.x
         | field TIGHT_INFIX_PROJ fieldToUpdate
-           {do
-              let top = $1
-                  fields = top : reverse $3
-                  final = last fields
-                  l = comb2 top final
-              puns <- getBit RecordPunsBit
-              when (not puns) $
-                addError l $
-                  text "For this to work, enable NamedFieldPuns."
-              var <- mkHsVarPV (noLoc (mkRdrUnqual . mkVarOcc . unpackFS . unLoc $ final))
-              fmap Pbind $ mkHsFieldUpdaterPV l fields var
-           }
+                        { do
+                            let top = $1
+                                fields = top : reverse $3
+                                final = last fields
+                                l = comb2 top final
+                            puns <- getBit RecordPunsBit
+                            when (not puns) $
+                              addError l $
+                                text "For this to work, enable NamedFieldPuns."
+                            var <- mkHsVarPV (noLoc (mkRdrUnqual . mkVarOcc . unpackFS . unLoc $ final))
+                            fmap Pbind $ mkHsFieldUpdaterPV l fields var
+                        }
 
 fieldToUpdate :: { [Located FastString] }
 fieldToUpdate

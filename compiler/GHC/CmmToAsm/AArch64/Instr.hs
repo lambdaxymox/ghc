@@ -13,6 +13,8 @@ import GHC.CmmToAsm.AArch64.Regs
 
 import GHC.CmmToAsm.Instr
 import GHC.CmmToAsm.Format
+import GHC.CmmToAsm.Types
+import GHC.CmmToAsm.Utils
 -- import GHC.CmmToAsm.Reg.Target
 import GHC.CmmToAsm.Config
 -- import GHC.Platform.Reg.Class
@@ -30,6 +32,8 @@ import GHC.Utils.Outputable
 import GHC.Platform
 -- import GHC.Types.Unique.FM (listToUFM, lookupUFM)
 import GHC.Types.Unique.Supply
+
+import GHC.Utils.Panic
 
 import Control.Monad (replicateM)
 import Data.Maybe (fromMaybe)

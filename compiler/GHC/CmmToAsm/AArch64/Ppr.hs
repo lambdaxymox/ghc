@@ -2,14 +2,21 @@ module GHC.CmmToAsm.AArch64.Ppr (pprNatCmmDecl) where
 
 import GHC.Prelude hiding (EQ)
 
+import Data.Word
+import qualified Data.Array.Unsafe as U ( castSTUArray )
+import Data.Array.ST
+import Control.Monad.ST
+
 import GHC.CmmToAsm.AArch64.Instr
 import GHC.CmmToAsm.AArch64.Regs
 import GHC.CmmToAsm.AArch64.Cond
 import GHC.CmmToAsm.Ppr
-import GHC.CmmToAsm.Instr
+import GHC.CmmToAsm.Instr hiding (pprInstr)
 import GHC.CmmToAsm.Format
 import GHC.Platform.Reg
 import GHC.CmmToAsm.Config
+import GHC.CmmToAsm.Types
+import GHC.CmmToAsm.Utils
 
 import GHC.Cmm hiding (topInfoTable)
 import GHC.Cmm.Dataflow.Collections
@@ -25,6 +32,8 @@ import GHC.Platform
 import GHC.Data.FastString
 import GHC.Utils.Outputable
 import GHC.Driver.Session (targetPlatform)
+
+import GHC.Utils.Panic
 
 pprProcAlignment :: NCGConfig -> SDoc
 pprProcAlignment config = maybe empty (pprAlign platform . mkAlignment) (ncgProcAlignment config)
@@ -46,7 +55,7 @@ pprNatCmmDecl config proc@(CmmProc top_info lbl _ (ListGraph blocks)) =
         -- pprProcAlignment config $$
         pprLabel platform lbl $$ -- blocks guaranteed not null, so label needed
         vcat (map (pprBasicBlock config top_info) blocks) $$
-        (if ncgDebugLevel config > 0
+        (if ncgDwarfEnabled config
          then ppr (mkAsmTempEndLabel lbl) <> char ':' else empty) $$
         pprSizeDecl platform lbl
 
@@ -115,7 +124,7 @@ pprBasicBlock config info_env (BasicBlock blockid instrs)
   = maybe_infotable $
     pprLabel platform asmLbl $$
     vcat (map (pprInstr platform) (id {-detectTrivialDeadlock-} optInstrs)) $$
-    (if  ncgDebugLevel config > 0
+    (if  ncgDwarfEnabled config
       then ppr (mkAsmTempEndLabel asmLbl) <> char ':'
       else empty
     )
@@ -164,7 +173,7 @@ pprBasicBlock config info_env (BasicBlock blockid instrs)
            vcat (map (pprData config) info) $$
            pprLabel platform info_lbl $$
            c $$
-           (if ncgDebugLevel config > 0
+           (if ncgDwarfEnabled config
              then ppr (mkAsmTempEndLabel info_lbl) <> char ':'
              else empty)
     -- Make sure the info table has the right .loc for the block
@@ -252,8 +261,23 @@ pprDataItem config lit
 
         ppr_item _ _ = pprPanic "pprDataItem:ppr_item" (text $ show lit)
 
-pprImm :: Imm -> SDoc
+floatToBytes :: Float -> [Int]
+floatToBytes f
+   = runST (do
+        arr <- newArray_ ((0::Int),3)
+        writeArray arr 0 f
+        arr <- castFloatToWord8Array arr
+        i0 <- readArray arr 0
+        i1 <- readArray arr 1
+        i2 <- readArray arr 2
+        i3 <- readArray arr 3
+        return (map fromIntegral [i0,i1,i2,i3])
+     )
 
+castFloatToWord8Array :: STUArray s Int Float -> ST s (STUArray s Int Word8)
+castFloatToWord8Array = U.castSTUArray
+
+pprImm :: Imm -> SDoc
 pprImm (ImmInt i)     = int i
 pprImm (ImmInteger i) = integer i
 pprImm (ImmCLbl l)    = ppr l

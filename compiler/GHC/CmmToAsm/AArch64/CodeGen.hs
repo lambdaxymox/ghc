@@ -31,6 +31,7 @@ import GHC.CmmToAsm.Instr
 import GHC.CmmToAsm.PIC
 import GHC.CmmToAsm.Format
 import GHC.CmmToAsm.Config
+import GHC.CmmToAsm.Types
 import GHC.Platform.Reg
 import GHC.Platform
 
@@ -59,6 +60,7 @@ import GHC.Types.Basic
 import GHC.Types.ForeignCall
 import GHC.Data.FastString
 import GHC.Utils.Misc
+import GHC.Utils.Panic
 
 -- @cmmTopCodeGen@ will be our main entry point to code gen.  Here we'll get
 -- @RawCmmDecl@; see GHC.Cmm

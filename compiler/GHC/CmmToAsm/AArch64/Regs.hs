@@ -17,7 +17,10 @@ import GHC.Types.Unique
 
 import GHC.Platform.Regs
 import GHC.Utils.Outputable
+import GHC.Utils.Panic
 import GHC.Platform
+
+import GHC.Driver.Ppr
 
 -- import Data.Word        ( Word8, Word16, Word32, Word64 )
 -- import Data.Int         ( Int8, Int16, Int32, Int64 )
@@ -74,7 +77,7 @@ data Imm
   deriving (Eq, Show)
 
 instance Show SDoc where
-  show = showSDocUnsafe
+  show = showPprUnsafe . ppr
 
 instance Eq SDoc where
   lhs == rhs = show lhs == show rhs
@@ -154,7 +157,7 @@ mkVirtualReg u format
    = case format of
         FF32    -> VirtualRegD u
         FF64    -> VirtualRegD u
-        _    -> panic "AArch64.mkVirtualReg"
+        _       -> panic "AArch64.mkVirtualReg"
 
 {-# INLINE classOfRealReg      #-}
 classOfRealReg :: RealReg -> RegClass

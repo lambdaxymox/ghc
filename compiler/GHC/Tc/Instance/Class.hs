@@ -704,7 +704,7 @@ matchHasField dflags short_cut clas tys
 
                      -- Do not generate an instance if the updater cannot be
                      -- defined for the field and hence is ().  (See Note
-                     -- [Missing record updaters] in GHC.Tc.TyCl.Utils.)
+                     -- [Naughty record updaters] in GHC.Tc.TyCl.Utils.)
                    ; if not (upd_ty `eqType` unitTy)
                      then do { addUsedGRE True gre
                              ; return OneInst { cir_new_theta = theta

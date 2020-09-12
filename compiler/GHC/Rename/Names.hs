@@ -1063,6 +1063,7 @@ filterImports iface decl_spec (Just (want_hiding, L l import_items))
                          , [])
 
         IEThingWith xt ltc@(L l rdr_tc) wc rdr_ns rdr_fs ->
+          -- See Note [IEThingWith] in GHC.Hs.ImpExp for why rdr_fs is null
           ASSERT2(null rdr_fs, ppr rdr_fs) do
            (name, avail, mb_parent)
                <- lookup_name (IEThingAbs noExtField ltc) (ieWrappedName rdr_tc)

@@ -59,18 +59,20 @@ Of course, datatypes with no constructors cannot have any fields.
 
 Note [Updater names]
 ~~~~~~~~~~~~~~~~~~~~
-As well as the name of the selector for a field label, we sometimes need to
-store the name of the updater, which is a pre-generated function for updating a
-sole field of a record.  See Note [Record updaters] in GHC.Tc.TyCl.Utils, which
-describes how updaters are constructed and used.
+A record "updater" is a pre-generated function for updating a single field of a
+record, just as a selector is a pre-generated function for accessing a single
+field.  See Note [Record updaters] in GHC.Tc.TyCl.Utils, which describes how
+updaters are constructed and used.
 
-However, in some circumstance we do not need the updater name:
+Field labels usually store both the name of the selector and the name of the
+updater.  However, there are two cases in which we do not need the updater name,
+so we store the selector only:
 
  * The renamer uses the selector name to uniquely identify the field, but the
    updater name is irrelevant for renaming, so field labels with only selector
-   names appear in AvailInfo and IE.  (Arguably it might be better for the
-   renamer not to rely on the selector name like this, but changing it would be
-   a major effort.)
+   names appear in AvailInfo and IEThingWith.  (Arguably it might be better for
+   the renamer not to rely on the selector name like this, but changing it would
+   be a major effort.)
 
  * Record pattern synonyms do not have updaters, but they do contain field
    labels.  (See Note [No updaters for pattern synonyms] in GHC.Tc.TyCl.Utils.)

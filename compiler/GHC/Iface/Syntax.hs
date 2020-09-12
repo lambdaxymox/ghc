@@ -262,7 +262,9 @@ data IfaceConDecl
         ifConEqSpec  :: IfaceEqSpec,        -- Equality constraints
         ifConCtxt    :: IfaceContext,       -- Non-stupid context
         ifConArgTys  :: [(IfaceMult, IfaceType)],-- Arg types
-        ifConFields  :: [FieldLabel],  -- ...ditto... (field labels)
+        ifConFields  :: [FieldLabel], -- Field labels: we carefully serialise
+                                      -- the Names of the selector and updater,
+                                      -- so there is no doubt when deserialising
         ifConStricts :: [IfaceBang],
           -- Empty (meaning all lazy),
           -- or 1-1 corresp with arg tys

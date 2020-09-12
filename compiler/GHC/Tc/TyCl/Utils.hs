@@ -911,7 +911,7 @@ mkRecordSelectorAndUpdater all_cons idDetails fl x_vars y_var =
                  conLikeUserTyVarBinders con1
     data_tv_set= tyCoVarsOfTypes inst_tys
 
-    -- See Note [Naughty record selectors] and Note [Missing record updaters]
+    -- See Note [Naughty record selectors] and Note [Naughty record updaters]
     is_naughty = not (tyCoVarsOfType field_ty `subVarSet` data_tv_set)
     no_updater = is_naughty
                   || not (isTauTy field_ty)
@@ -1272,34 +1272,43 @@ Note that:
 
  * Renamed-syntax bindings for both a selector and an updater for each field are
    produced by mkRecordSelectorAndUpdater; these bindings are then type-checked
-   together normally.  We produce renamed syntax rather than attempting to
-   generate Core terms directly because the corresponding Core terms are rather
-   complex (e.g. because of worker-wrapper).
+   together normally.
+
+ * We produce renamed syntax rather than attempting to generate Core terms
+   directly because the corresponding Core terms are rather complex.  This is
+   because they include the code necessary to evaluate strict fields, and to
+   pack/unpack UNPACKed fields, i.e. everything that is handled by the
+   constructor wrapper, and by dataConBoxer when desugaring pattern matching.
+   See Note [Generating updaters in advance].
 
  * In some cases we may not be able to generate an updater and will bind its
    name to () instead, even if we can generate the corresponding selector.  See
-   Note [Missing record updaters].
+   Note [Naughty record updaters].
 
 
-Note [Missing record updaters]
+Note [Naughty record updaters]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 There are a few cases in which we cannot generate an updater for a field:
 
- * The field has an existential tyvar, e.g.
+1. The field has an existential tyvar, e.g.
      data T = forall a . MkT { foo :: a }
    This is the same as for selectors (see Note [Naughty record selectors]).
 
- * The field is higher-rank, e.g.
+2. The field is higher-rank, e.g.
      data T = MkT { foo :: forall a . a -> a }
    as this would require an impredicative instantiation of (,).
 
- * The field kind is not Type, e.g.
+3. The field kind is not Type, e.g.
      data T = MkT { foo :: Addr# }
    as this would require an ill-kinded application of (,).
 
-If any of these apply, we bind $upd:foo:MkT to (), just like for naughty
-record selectors. This means that when trying to generate a HasField instance,
-we need to check if the updater is () and if so give up.
+Every field with a naughty record selector also has a naughty record updater
+(because the condition 1 is the same for both).  However, some types will have a
+naughty updater but a regular selector (where conditions 2 or 3 apply).
+
+If any of these apply, we bind $upd:foo:MkT to (), just as a naughty record
+selector is bound to (). This means that when trying to generate a HasField
+instance, we need to check if the updater is () and if so give up.
 
 
 Note [Generating updaters in advance]
@@ -1325,6 +1334,40 @@ Note [No updaters for pattern synonyms]
 For record pattern synonyms, we generate a selector function, but not an
 updater.  The updater function is not necessary because we do not solve HasField
 constraints for fields defined by pattern synonyms.
+
+That is, given
+
+    pattern MkPair{x,y} = (x, y)
+
+you can use `x` as a "record selector" in an expression.  But the constraint
+solver will not automatically solve constraints like `HasField "x" (a, b) a`, so
+you cannot directly use expressions such as `getField @"x" (True, False)` or
+`setField @"x" p False`, and RecordDotSyntax will not natively support record
+pattern synonyms.
+
+This can be worked around by the user user manually writing an explicit
+HasField instance, such as
+
+   instance HasField "x" (a,b) a where
+      hasField (x,y) = (\x' -> (x',y), x)
+
+which will be subject to the usual rules around orphan instances and the
+restrictions on when HasField instances can be defined (as described in
+Note [Validity checking of HasField instances] in GHC.Tc.Validity).
+
+We could imagine allowing record pattern synonyms to lead to automatic HasField
+constraint solving, but this potentially introduces incoherent HasField
+instances, because multiple pattern synonyms (in different modules) might use
+the same field name in the same type, and would even lead to e.g.
+
+    pattern Id{id} = id
+
+introducing an `id` field to *every* type!
+
+Given the possibility of incoherence, and the fact that a reasonable workaround
+exists, we do not currently solve HasField constraints for fields defined by
+pattern synonyms.  And since we do not need updaters for anything other than
+solving HasField constraints, we do not generate them for pattern synonyms.
 
 -}
 

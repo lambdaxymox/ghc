@@ -1,4 +1,6 @@
-module GHC.CmmToAsm.AArch64.Ppr (pprNatCmmDecl) where
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
+module GHC.CmmToAsm.AArch64.Ppr (pprNatCmmDecl, pprInstr) where
 
 import GHC.Prelude hiding (EQ)
 
@@ -11,7 +13,6 @@ import GHC.CmmToAsm.AArch64.Instr
 import GHC.CmmToAsm.AArch64.Regs
 import GHC.CmmToAsm.AArch64.Cond
 import GHC.CmmToAsm.Ppr
-import GHC.CmmToAsm.Instr hiding (pprInstr)
 import GHC.CmmToAsm.Format
 import GHC.Platform.Reg
 import GHC.CmmToAsm.Config

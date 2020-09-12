@@ -676,7 +676,7 @@ matchHasField dflags short_cut clas tys
                -- x should be a field of r
              , Just fl <- lookupTyConFieldLabel x r_tc
                -- the field selector should be in scope
-             , Just gre <- lookupGRE_FieldLabel rdr_env (fieldLabelWithoutUpdate fl)
+             , Just gre <- lookupGRE_FieldLabel rdr_env fl
 
              -> do { upd_id <- tcLookupId (flUpdate fl)
                    ; (tv_prs, preds, upd_ty) <- tcInstType newMetaTyVars upd_id

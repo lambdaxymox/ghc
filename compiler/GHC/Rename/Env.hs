@@ -646,11 +646,15 @@ lookupSubBndrOcc_helper must_have_parent warn_if_deprec parent rdr_name
 
         fldParentToFieldLabel :: Name -> Maybe FastString -> FieldLabel
         fldParentToFieldLabel name mfs =
-          case mfs of
-            Nothing ->
-              let fs = occNameFS (nameOccName name)
-              in FieldLabel fs False () name
-            Just fs -> FieldLabel fs True () name
+            FieldLabel { flLabel        = fs
+                       , flIsOverloaded = is_overloaded
+                       , flUpdate       = ()
+                       , flSelector     = name
+                       }
+          where
+            (fs, is_overloaded) = case mfs of
+                Nothing -> (occNameFS (nameOccName name), False)
+                Just fs -> (fs, True)
 
         -- Called when we find no matching GREs after disambiguation but
         -- there are three situations where this happens.

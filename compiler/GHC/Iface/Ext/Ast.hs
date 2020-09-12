@@ -2027,6 +2027,6 @@ instance ToHie (IEContext (LIEWrappedName Name)) where
 
 instance ToHie (IEContext (Located (FieldLbl () Name))) where
   toHie (IEC c (L span lbl)) = concatM $ makeNode lbl span : case lbl of
-      FieldLabel _ _ _ n ->
+      FieldLabel { flSelector = n } ->
         [ toHie $ C (IEThing c) $ L span n
         ]

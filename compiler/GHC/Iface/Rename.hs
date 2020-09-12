@@ -253,17 +253,17 @@ rnAvailInfo (AvailTC n ns fs) = do
                          return (AvailTC n' ns' fs')
 
 rnFieldLabel :: Rename FieldLabel
-rnFieldLabel (FieldLabel l b () sel) = do
+rnFieldLabel fl@(FieldLabel { flSelector = sel }) = do
     sel' <- rnIfaceGlobal sel
-    return (FieldLabel l b () sel')
+    return (fl { flSelector = sel' })
 
 rnFieldLabelWithUpdate :: Rename FieldLabelWithUpdate
-rnFieldLabelWithUpdate (FieldLabel l b upd sel) = do
+rnFieldLabelWithUpdate fl@(FieldLabel { flUpdate = upd, flSelector = sel }) = do
     -- The selector appears in the AvailInfo, so it gets renamed normally, but
     -- the updater does not so it is a "never-exported TyThing".
     upd' <- rnIfaceNeverExported upd
     sel' <- rnIfaceGlobal sel
-    return (FieldLabel l b upd' sel')
+    return (fl { flUpdate = upd', flSelector = sel' })
 
 
 

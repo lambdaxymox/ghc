@@ -45,7 +45,7 @@ import GHC.Tc.Utils.TcMType
 import GHC.Builtin.Types ( unitTy, makeRecoveryTyCon )
 import GHC.Tc.Utils.TcType
 import GHC.Core.Multiplicity
-import GHC.Rename.Env( lookupDataConFieldsWithUpdates )
+import GHC.Rename.Env( lookupDataConFields )
 import GHC.Tc.Instance.Family
 import GHC.Core.FamInstEnv
 import GHC.Core.Coercion
@@ -3201,7 +3201,7 @@ tcConDecl rep_tycon tag_map tmpl_bndrs res_kind res_tmpl new_or_data
               do { ctxt <- tcHsMbContext hs_ctxt
                  ; let exp_kind = getArgExpKind new_or_data res_kind
                  ; btys <- tcConArgs exp_kind hs_args
-                 ; field_lbls <- lookupDataConFieldsWithUpdates (unLoc name)
+                 ; field_lbls <- lookupDataConFields (unLoc name)
                  ; let (arg_tys, stricts) = unzip btys
                  ; return (ctxt, arg_tys, field_lbls, stricts)
                  }
@@ -3289,7 +3289,7 @@ tcConDecl rep_tycon tag_map tmpl_bndrs _res_kind res_tmpl new_or_data
 
                  ; btys <- tcConArgs exp_kind hs_args
                  ; let (arg_tys, stricts) = unzip btys
-                 ; field_lbls <- lookupDataConFieldsWithUpdates name
+                 ; field_lbls <- lookupDataConFields name
                  ; return (ctxt, arg_tys, res_ty, field_lbls, stricts)
                  }
        ; imp_tvs <- zonkAndScopedSort imp_tvs

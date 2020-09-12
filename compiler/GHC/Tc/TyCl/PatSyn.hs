@@ -763,7 +763,7 @@ tcPatSynMatcher (L loc name) lpat
        ; return ((matcher_id, is_unlifted), matcher_bind) }
 
 mkPatSynRecSelBinds :: PatSyn
-                    -> [FieldLabel]  -- ^ Visible field labels
+                    -> [FieldLabelNoUpdater]  -- ^ Visible field labels
                     -> [(Id, LHsBind GhcRn)]
 mkPatSynRecSelBinds ps fields
   = [ mkOneRecordSelector [PatSynCon ps] (RecSelPatSyn ps) fld_lbl

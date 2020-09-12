@@ -27,7 +27,6 @@ module GHC.Core.TyCon(
 
         -- ** Field labels
         tyConFieldLabels, lookupTyConFieldLabel,
-        tyConFieldLabelsWithUpdates,
 
         -- ** Constructing TyCons
         mkAlgTyCon,
@@ -147,7 +146,7 @@ import {-# SOURCE #-} GHC.Builtin.Types
    , multiplicityTyCon
    , vecCountTyCon, vecElemTyCon, liftedTypeKind )
 import {-# SOURCE #-} GHC.Core.DataCon
-   ( DataCon, dataConExTyCoVars, dataConFieldLabelsWithUpdates
+   ( DataCon, dataConExTyCoVars, dataConFieldLabels
    , dataConTyCon, dataConFullSig
    , isUnboxedSumCon )
 
@@ -1548,11 +1547,7 @@ primRepIsFloat  _            = Just False
 
 -- | The labels for the fields of this particular 'TyCon'
 tyConFieldLabels :: TyCon -> [FieldLabel]
-tyConFieldLabels tc = fieldLabelsWithoutUpdates $ tyConFieldLabelsWithUpdates tc
-
-tyConFieldLabelsWithUpdates :: TyCon -> [FieldLabelWithUpdate]
-tyConFieldLabelsWithUpdates tc = dFsEnvElts $ tyConFieldLabelEnv tc
-
+tyConFieldLabels tc = dFsEnvElts $ tyConFieldLabelEnv tc
 
 -- | The labels for the fields of this particular 'TyCon'
 tyConFieldLabelEnv :: TyCon -> FieldLabelEnv
@@ -1561,7 +1556,7 @@ tyConFieldLabelEnv tc
   | otherwise     = emptyDFsEnv
 
 -- | Look up a field label belonging to this 'TyCon'
-lookupTyConFieldLabel :: FieldLabelString -> TyCon -> Maybe FieldLabelWithUpdate
+lookupTyConFieldLabel :: FieldLabelString -> TyCon -> Maybe FieldLabel
 lookupTyConFieldLabel lbl tc = lookupDFsEnv (tyConFieldLabelEnv tc) lbl
 
 -- | Make a map from strings to FieldLabels from all the data
@@ -1571,7 +1566,7 @@ fieldsOfAlgTcRhs rhs = mkDFsEnv [ (flLabel fl, fl)
                                 | fl <- dataConsFields (visibleDataCons rhs) ]
   where
     -- Duplicates in this list will be removed by 'mkFsEnv'
-    dataConsFields dcs = concatMap dataConFieldLabelsWithUpdates dcs
+    dataConsFields dcs = concatMap dataConFieldLabels dcs
 
 
 {-

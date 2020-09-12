@@ -98,7 +98,7 @@ import GHC.Core.TyCon  ( TyCon, tyConKind )
 import GHC.Core.PatSyn ( PatSyn )
 import GHC.Core.Lint   ( lintAxioms )
 import GHC.Types.Id         ( idType, idName )
-import GHC.Types.FieldLabel ( FieldLabelWithUpdate )
+import GHC.Types.FieldLabel ( FieldLabel )
 import GHC.Core.UsageEnv
 import GHC.Tc.Utils.TcType
 import GHC.Tc.Types.Constraint
@@ -640,7 +640,7 @@ tcVisibleOrphanMods tcg_env
 instance ContainsModule TcGblEnv where
     extractModule env = tcg_semantic_mod env
 
-type RecFieldEnv = NameEnv [FieldLabelWithUpdate]
+type RecFieldEnv = NameEnv [FieldLabel]
         -- Maps a constructor name *in this module*
         -- to the fields for that constructor.
         -- This is used when dealing with ".." notation in record

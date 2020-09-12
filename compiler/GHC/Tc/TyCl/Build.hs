@@ -105,7 +105,7 @@ buildDataCon :: FamInstEnvs
             -> [HsSrcBang]
             -> Maybe [HsImplBang]
                 -- See Note [Bangs on imported data constructors] in GHC.Types.Id.Make
-           -> [FieldLabelWithUpdate]   -- Field labels
+           -> [FieldLabel]             -- Field labels
            -> [TyVar]                  -- Universals
            -> [TyCoVar]                -- Existentials
            -> [InvisTVBinder]          -- User-written 'TyVarBinder's
@@ -176,7 +176,7 @@ buildPatSyn :: Name -> Bool
             -> ([InvisTVBinder], ThetaType) -- ^ Ex and prov
             -> [Type]                       -- ^ Argument types
             -> Type                         -- ^ Result type
-            -> [FieldLabel]                 -- ^ Field labels for
+            -> [FieldLabelNoUpdater]        -- ^ Field labels for
                                             --   a record pattern synonym
             -> PatSyn
 buildPatSyn src_name declared_infix matcher@(matcher_id,_) builder

@@ -245,20 +245,20 @@ rnAvailInfo (AvailTC n ns fs) = do
     -- is.  But for the availNames they MUST be exported, so they
     -- will rename fine.
     ns' <- mapM rnIfaceGlobal ns
-    fs' <- mapM rnFieldLabel fs
+    fs' <- mapM rnFieldLabelNoUpdater fs
     case ns' ++ map flSelector fs' of
         [] -> panic "rnAvailInfoEmpty AvailInfo"
         (rep:rest) -> ASSERT2( all ((== nameModule rep) . nameModule) rest, ppr rep $$ hcat (map ppr rest) ) do
                          n' <- setNameModule (Just (nameModule rep)) n
                          return (AvailTC n' ns' fs')
 
-rnFieldLabel :: Rename FieldLabel
-rnFieldLabel fl@(FieldLabel { flSelector = sel }) = do
+rnFieldLabelNoUpdater :: Rename FieldLabelNoUpdater
+rnFieldLabelNoUpdater fl@(FieldLabel { flSelector = sel }) = do
     sel' <- rnIfaceGlobal sel
     return (fl { flSelector = sel' })
 
-rnFieldLabelWithUpdate :: Rename FieldLabelWithUpdate
-rnFieldLabelWithUpdate fl@(FieldLabel { flUpdate = upd, flSelector = sel }) = do
+rnFieldLabel :: Rename FieldLabel
+rnFieldLabel fl@(FieldLabel { flUpdate = upd, flSelector = sel }) = do
     -- The selector appears in the AvailInfo, so it gets renamed normally, but
     -- the updater does not so it is a "never-exported TyThing".
     upd' <- rnIfaceNeverExported upd
@@ -574,7 +574,7 @@ rnIfaceConDecl d = do
     con_eq_spec <- mapM rnIfConEqSpec (ifConEqSpec d)
     con_ctxt <- mapM rnIfaceType (ifConCtxt d)
     con_arg_tys <- mapM rnIfaceScaledType (ifConArgTys d)
-    con_fields <- mapM rnFieldLabelWithUpdate (ifConFields d)
+    con_fields <- mapM rnFieldLabel (ifConFields d)
     let rnIfaceBang (IfUnpackCo co) = IfUnpackCo <$> rnIfaceCo co
         rnIfaceBang bang = pure bang
     con_stricts <- mapM rnIfaceBang (ifConStricts d)

@@ -25,7 +25,7 @@ module GHC.Rename.Env (
         lookupSigCtxtOccRn,
 
         lookupInstDeclBndr, lookupRecFieldOcc, lookupFamInstName,
-        lookupConstructorFields, lookupDataConFieldsWithUpdates,
+        lookupConstructorFields, lookupDataConFields,
 
         lookupGreAvailRn,
 
@@ -386,8 +386,8 @@ lookupFamInstName Nothing tc_rdr     -- Family instance; tc_rdr is an *occurrenc
   = lookupLocatedOccRn tc_rdr
 
 -----------------------------------------------
-lookupConstructorFields :: Name -> RnM [FieldLabel]
--- Look up the fields of a given constructor
+lookupConstructorFields :: Name -> RnM [FieldLabelNoUpdater]
+-- Look up the fields of a given data constructor or pattern synonym
 --   *  For constructors from this module, use the record field env,
 --      which is itself gathered from the (as yet un-typechecked)
 --      data type decls
@@ -395,13 +395,15 @@ lookupConstructorFields :: Name -> RnM [FieldLabel]
 --    * For constructors from imported modules, use the *type* environment
 --      since imported modules are already compiled, the info is conveniently
 --      right there
+--
+-- Returns field labels without updaters (pattern synonyms don't have them).
 
 lookupConstructorFields con_name
   = do  { this_mod <- getModule
         ; if nameIsLocalOrFrom this_mod con_name then
           do { field_env <- getRecFieldEnv
              ; traceTc "lookupCF" (ppr con_name $$ ppr (lookupNameEnv field_env con_name) $$ ppr field_env)
-             ; return (fieldLabelsWithoutUpdates
+             ; return (fieldLabelsWithoutUpdaters
                           (lookupNameEnv field_env con_name `orElse` [])) }
           else
           do { con <- tcLookupConLike con_name
@@ -410,8 +412,8 @@ lookupConstructorFields con_name
 
 -- | Look up the fields of a given *data* constructor, like
 -- 'lookupConstructorFields', but include the names of the update functions.
-lookupDataConFieldsWithUpdates :: Name -> RnM [FieldLabelWithUpdate]
-lookupDataConFieldsWithUpdates con_name
+lookupDataConFields :: Name -> RnM [FieldLabel]
+lookupDataConFields con_name
   = do  { this_mod <- getModule
         ; if nameIsLocalOrFrom this_mod con_name then
           do { field_env <- getRecFieldEnv
@@ -420,7 +422,7 @@ lookupDataConFieldsWithUpdates con_name
           else
           do { con <- tcLookupDataCon con_name
              ; traceTc "lookupCF 2" (ppr con)
-             ; return (dataConFieldLabelsWithUpdates con) } }
+             ; return (dataConFieldLabels con) } }
 
 
 -- In CPS style as `RnM r` is monadic
@@ -644,7 +646,7 @@ lookupSubBndrOcc_helper must_have_parent warn_if_deprec parent rdr_name
               FoundFL  (fldParentToFieldLabel gre_name mfs)
             _ -> FoundName gre_par gre_name
 
-        fldParentToFieldLabel :: Name -> Maybe FastString -> FieldLabel
+        fldParentToFieldLabel :: Name -> Maybe FastString -> FieldLabelNoUpdater
         fldParentToFieldLabel name mfs =
             FieldLabel { flLabel        = fs
                        , flIsOverloaded = is_overloaded
@@ -764,7 +766,7 @@ data ChildLookupResult
                         SDoc        -- How to print the name
                         [Name]      -- List of possible parents
       | FoundName Parent Name       --  We resolved to a normal name
-      | FoundFL FieldLabel          --  We resolved to a FL
+      | FoundFL FieldLabelNoUpdater --  We resolved to a field
 
 -- | Specialised version of msum for RnM ChildLookupResult
 combineChildLookupResult :: [RnM ChildLookupResult] -> RnM ChildLookupResult

@@ -851,11 +851,11 @@ mkRecSelBinds :: [TyCon] -> TcM [(Id, LHsBind GhcRn)]
 mkRecSelBinds tycons
   = concatMapM mkRecSelAndUpd [ (tc,fld)
                               | tc <- tycons
-                              , fld <- tyConFieldLabelsWithUpdates tc ]
+                              , fld <- tyConFieldLabels tc ]
 
 -- | Create both a record selector and a record updater binding for a field in a
 -- TyCon.  See Note [Record updaters]
-mkRecSelAndUpd :: (TyCon, FieldLabelWithUpdate) -> TcM [(Id, LHsBind GhcRn)]
+mkRecSelAndUpd :: (TyCon, FieldLabel) -> TcM [(Id, LHsBind GhcRn)]
 mkRecSelAndUpd (tycon, fl) = do
     -- Make fresh names x1..xN for binding all the fields in the TyCon
     -- (including the one being updated), and a fresh name y for binding the new
@@ -871,14 +871,14 @@ mkRecSelAndUpd (tycon, fl) = do
 
 -- | Create a record selector binding, but no updater.  This is used for fields
 -- in pattern synonyms.  See Note [No updaters for pattern synonyms]
-mkOneRecordSelector :: [ConLike] -> RecSelParent -> FieldLabel
+mkOneRecordSelector :: [ConLike] -> RecSelParent -> FieldLabelNoUpdater
                     -> (Id, LHsBind GhcRn)
 mkOneRecordSelector all_cons idDetails fl
   = fst $ mkRecordSelectorAndUpdater all_cons idDetails (fl { flUpdate = oops }) oops oops
   where
     oops = error "mkOneRecordSelector: poked a field needed only for updaters"
 
-mkRecordSelectorAndUpdater :: [ConLike] -> RecSelParent -> FieldLabelWithUpdate
+mkRecordSelectorAndUpdater :: [ConLike] -> RecSelParent -> FieldLabel
                            -> NameEnv Name -> Name
                            -> ((Id, LHsBind GhcRn), (Id, LHsBind GhcRn))
 mkRecordSelectorAndUpdater all_cons idDetails fl x_vars y_var =
@@ -1010,7 +1010,9 @@ mkRecordSelectorAndUpdater all_cons idDetails fl x_vars y_var =
         -- Used for both pattern and record construction, to create
         --     { fld1 = k fld1, .., fldN = k fldN }
         -- where k gives the hsRecFieldArg for each field
-        rec_fields :: ConLike -> (FieldLabel -> a) -> HsRecFields GhcRn (Located a)
+        rec_fields :: ConLike
+                   -> (FieldLabelNoUpdater -> a)
+                   -> HsRecFields GhcRn (Located a)
         rec_fields con k = HsRecFields { rec_flds = map rec_field
                                                         (conLikeFieldLabels con)
                                        , rec_dotdot = Nothing }
@@ -1266,7 +1268,7 @@ Note that:
    scope.
 
  * The Name of each updater is stored alongside that of the selector in the
-   'FieldLabelWithUpdate's in each 'DataCon'.
+   'FieldLabel's in each 'DataCon'.
 
  * Renamed-syntax bindings for both a selector and an updater for each field are
    produced by mkRecordSelectorAndUpdater; these bindings are then type-checked

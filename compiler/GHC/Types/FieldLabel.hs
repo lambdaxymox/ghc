@@ -77,7 +77,7 @@ However, in some circumstance we do not need the updater name:
 
 The FieldLbl type is parameterised over the representations of updater names and
 selector names, so we can vary whether updater names are available
-(FieldLabelWithUpdate) or not (FieldLabel).
+(FieldLabel) or not (FieldLabelNoUpdater).
 
 -}
 
@@ -92,10 +92,9 @@ module GHC.Types.FieldLabel
    , FieldLabelEnv
    , FieldLbl(..)
    , FieldLabel
-   , FieldLabelWithUpdate
+   , FieldLabelNoUpdater
    , mkFieldLabelOccs
-   , fieldLabelWithoutUpdate
-   , fieldLabelsWithoutUpdates
+   , fieldLabelsWithoutUpdaters
    )
 where
 
@@ -116,16 +115,16 @@ import Data.Data
 type FieldLabelString = FastString
 
 -- | A map from labels to all the auxiliary information
-type FieldLabelEnv = DFastStringEnv FieldLabelWithUpdate
+type FieldLabelEnv = DFastStringEnv FieldLabel
 
-
--- | Representation of a field where we know the name of the selector function,
--- but not the updater.
-type FieldLabel = FieldLbl () Name
 
 -- | Representation of a field where we know the names of both the selector and
 -- updater functions.
-type FieldLabelWithUpdate = FieldLbl Name Name
+type FieldLabel = FieldLbl Name Name
+
+-- | Representation of a field where we know the name of the selector function,
+-- but not the updater.
+type FieldLabelNoUpdater = FieldLbl () Name
 
 -- | Fields in an algebraic record type
 data FieldLbl update_rep selector_rep = FieldLabel {
@@ -157,12 +156,12 @@ instance (Binary a, Binary b) => Binary (FieldLbl a b) where
 
 
 -- | Drop the updater names from a field label (see Note [Updater names]).
-fieldLabelWithoutUpdate :: FieldLabelWithUpdate -> FieldLabel
-fieldLabelWithoutUpdate fl = fl { flUpdate = () }
+fieldLabelWithoutUpdater :: FieldLabel -> FieldLabelNoUpdater
+fieldLabelWithoutUpdater fl = fl { flUpdate = () }
 
 -- | Drop the updater names from a list of field labels.
-fieldLabelsWithoutUpdates :: [FieldLabelWithUpdate] -> [FieldLabel]
-fieldLabelsWithoutUpdates = map fieldLabelWithoutUpdate
+fieldLabelsWithoutUpdaters :: [FieldLabel] -> [FieldLabelNoUpdater]
+fieldLabelsWithoutUpdaters = map fieldLabelWithoutUpdater
 
 
 -- | Record selector OccNames are built from the underlying field name

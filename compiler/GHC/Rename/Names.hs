@@ -736,7 +736,7 @@ getLocalNonValBinders fixity_env
                             ; return (avail nm) }
 
     new_tc :: Bool -> LTyClDecl GhcPs
-           -> RnM (AvailInfo, [(Name, [FieldLabelWithUpdate])])
+           -> RnM (AvailInfo, [(Name, [FieldLabel])])
     new_tc overload_ok tc_decl -- NOT for type/data instances
         = do { let (bndrs, flds) = hsLTyClDeclBinders tc_decl
              ; names@(main_name : sub_names) <- mapM newTopSrcBinder bndrs
@@ -744,14 +744,14 @@ getLocalNonValBinders fixity_env
              ; let fld_env = case unLoc tc_decl of
                      DataDecl { tcdDataDefn = d } -> mk_fld_env d names flds'
                      _                            -> []
-             ; return (AvailTC main_name names (fieldLabelsWithoutUpdates flds'), fld_env) }
+             ; return (AvailTC main_name names (fieldLabelsWithoutUpdaters flds'), fld_env) }
 
 
     -- Calculate the mapping from constructor names to fields, which
     -- will go in tcg_field_env. It's convenient to do this here where
     -- we are working with a single datatype definition.
-    mk_fld_env :: HsDataDefn GhcPs -> [Name] -> [FieldLabelWithUpdate]
-               -> [(Name, [FieldLabelWithUpdate])]
+    mk_fld_env :: HsDataDefn GhcPs -> [Name] -> [FieldLabel]
+               -> [(Name, [FieldLabel])]
     mk_fld_env d names flds = concatMap find_con_flds (dd_cons d)
       where
         find_con_flds (L _ (ConDeclH98 { con_name = L _ rdr
@@ -778,7 +778,7 @@ getLocalNonValBinders fixity_env
           where lbl = occNameFS (rdrNameOcc rdr)
 
     new_assoc :: Bool -> LInstDecl GhcPs
-              -> RnM ([AvailInfo], [(Name, [FieldLabelWithUpdate])])
+              -> RnM ([AvailInfo], [(Name, [FieldLabel])])
     new_assoc _ (L _ (TyFamInstD {})) = return ([], [])
       -- type instances don't bind new names
 
@@ -813,7 +813,7 @@ getLocalNonValBinders fixity_env
                pure (avails, concat fldss)
 
     new_di :: Bool -> Maybe Name -> DataFamInstDecl GhcPs
-                   -> RnM (AvailInfo, [(Name, [FieldLabelWithUpdate])])
+                   -> RnM (AvailInfo, [(Name, [FieldLabel])])
     new_di overload_ok mb_cls dfid@(DataFamInstDecl { dfid_eqn =
                                      HsIB { hsib_body = ti_decl }})
         = do { main_name <- lookupFamInstName mb_cls (feqn_tycon ti_decl)
@@ -822,16 +822,16 @@ getLocalNonValBinders fixity_env
              ; flds' <- mapM (newRecordSelector overload_ok sub_names) flds
              ; let avail    = AvailTC (unLoc main_name)
                                       sub_names
-                                      (fieldLabelsWithoutUpdates flds')
+                                      (fieldLabelsWithoutUpdaters flds')
                                   -- main_name is not bound here!
                    fld_env  = mk_fld_env (feqn_rhs ti_decl) sub_names flds'
              ; return (avail, fld_env) }
 
     new_loc_di :: Bool -> Maybe Name -> LDataFamInstDecl GhcPs
-                   -> RnM (AvailInfo, [(Name, [FieldLabelWithUpdate])])
+                   -> RnM (AvailInfo, [(Name, [FieldLabel])])
     new_loc_di overload_ok mb_cls (L _ d) = new_di overload_ok mb_cls d
 
-newRecordSelector :: Bool -> [Name] -> LFieldOcc GhcPs -> RnM FieldLabelWithUpdate
+newRecordSelector :: Bool -> [Name] -> LFieldOcc GhcPs -> RnM FieldLabel
 newRecordSelector _ [] _ = error "newRecordSelector: datatype has no constructors!"
 newRecordSelector overload_ok (dc:_) (L loc (FieldOcc _ (L _ fld)))
   = do { selName <- newTopSrcBinder $ L loc $ field
@@ -1197,9 +1197,11 @@ mkChildEnv gres = foldr add emptyNameEnv gres
 findChildren :: NameEnv [a] -> Name -> [a]
 findChildren env n = lookupNameEnv env n `orElse` []
 
-lookupChildren :: [Either Name FieldLabel] -> [LIEWrappedName RdrName]
+lookupChildren :: forall a b .
+                  [Either Name (FieldLbl a b)]
+               -> [LIEWrappedName RdrName]
                -> MaybeErr [LIEWrappedName RdrName]   -- The ones for which the lookup failed
-                           ([Located Name], [Located FieldLabel])
+                           ([Located Name], [Located (FieldLbl a b)])
 -- (lookupChildren all_kids rdr_items) maps each rdr_item to its
 -- corresponding Name all_kids, if the former exists
 -- The matching is done by FastString, not OccName, so that
@@ -1211,14 +1213,14 @@ lookupChildren all_kids rdr_items
   | null fails
   = Succeeded (fmap concat (partitionEithers oks))
        -- This 'fmap concat' trickily applies concat to the /second/ component
-       -- of the pair, whose type is ([Located Name], [[Located FieldLabel]])
+       -- of the pair, whose type is ([Located Name], [[Located (FieldLbl a b)]])
   | otherwise
   = Failed fails
   where
     mb_xs = map doOne rdr_items
     fails = [ bad_rdr | Failed bad_rdr <- mb_xs ]
     oks   = [ ok      | Succeeded ok   <- mb_xs ]
-    oks :: [Either (Located Name) [Located FieldLabel]]
+    oks :: [Either (Located Name) [Located (FieldLbl a b)]]
 
     doOne item@(L l r)
        = case (lookupFsEnv kid_env . occNameFS . rdrNameOcc . ieWrappedName) r of

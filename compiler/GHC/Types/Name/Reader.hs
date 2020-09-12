@@ -753,7 +753,7 @@ availFromGRE (GRE { gre_name = me, gre_par = parent })
                  | otherwise      -> avail   me
       FldParent p mb_lbl -> AvailTC p [] [mkFieldLabel me mb_lbl]
 
-mkFieldLabel :: Name -> Maybe FastString -> FieldLabel
+mkFieldLabel :: Name -> Maybe FastString -> FieldLabelNoUpdater
 mkFieldLabel me mb_lbl =
           case mb_lbl of
                  Nothing  -> FieldLabel { flLabel = occNameFS (nameOccName me)

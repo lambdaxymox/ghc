@@ -40,6 +40,11 @@ Now there will be two FieldLabel values for 'foo', one in T and one in
 U.  They share the same label (FieldLabelString), but the selector
 functions differ.
 
+There is no Deep and Subtle Reason why we couldn't use mangled $sel: names for
+all selectors, not just those defined when DuplicateRecordFields is enabled.
+However, this exposes various bugs in the DuplicateRecordFields implementation,
+so we have not yet made this simplification.
+
 See also Note [Representing fields in AvailInfo] in GHC.Types.Avail.
 
 Note [Why selector names include data constructors]

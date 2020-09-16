@@ -1183,6 +1183,14 @@ type (e.g. 'b' in T2).
 
 Note the need for casts in the result!
 
+All this applies to updaters (see Note [Record updaters]) as well as selectors;
+in the example above we will build this updater:
+    $upd:f:T1 :: T [a] -> (Maybe a -> T [a], Maybe a)
+
+If a GADT field has bona-fide existential tyvars that do not appear in the
+result type, the selector will be naughty (see Note [Naughty record selectors]).
+
+
 Note [Selector running example]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 It's OK to combine GADTs and type families.  Here's a running example:
@@ -1268,7 +1276,7 @@ Note that:
    scope.
 
  * The Name of each updater is stored alongside that of the selector in the
-   'FieldLabel's in each 'DataCon'.
+   'FieldLabel's in each 'DataCon'.  See the notes in GHC.Types.FieldLabel.
 
  * Renamed-syntax bindings for both a selector and an updater for each field are
    produced by mkRecordSelectorAndUpdater; these bindings are then type-checked
@@ -1284,6 +1292,16 @@ Note that:
  * In some cases we may not be able to generate an updater and will bind its
    name to () instead, even if we can generate the corresponding selector.  See
    Note [Naughty record updaters].
+
+ * We could imagine generating the selector *from* the updater, i.e. build
+       $sel:foo:T r = case $upd:foo:T r of (_, x) -> x
+   but we don't do so because the updater might be naughty, and for pattern
+   synonyms will not exist at all (see Note [No updaters for pattern synonyms]).
+
+ * For GADTs, we insist that all constructors mentioning a field have the same
+   type, and reject the definition entirely if not.  Thus if the field does not
+   involve an existential (and hence is not naughty) we can make both a selector
+   and an updater (see Note [GADT record selectors]).
 
 
 Note [Naughty record updaters]
@@ -1332,7 +1350,9 @@ do this at HasField constraint solving time instead, at least for updaters?
 Note [No updaters for pattern synonyms]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 For record pattern synonyms, we generate a selector function, but not an
-updater.  The updater function is not necessary because we do not solve HasField
+updater.  In principle it would be possible to build an updater for
+bidirectional pattern synonyms, but not for unidirectional ones.  In any case,
+the updater function is not necessary because we do not solve HasField
 constraints for fields defined by pattern synonyms.
 
 That is, given
@@ -1355,10 +1375,11 @@ which will be subject to the usual rules around orphan instances and the
 restrictions on when HasField instances can be defined (as described in
 Note [Validity checking of HasField instances] in GHC.Tc.Validity).
 
-We could imagine allowing record pattern synonyms to lead to automatic HasField
-constraint solving, but this potentially introduces incoherent HasField
-instances, because multiple pattern synonyms (in different modules) might use
-the same field name in the same type, and would even lead to e.g.
+We could imagine allowing (bidirectional) record pattern synonyms to lead to
+automatic HasField constraint solving, but this potentially introduces
+incoherent HasField instances, because multiple pattern synonyms (in different
+modules) might use the same field name in the same type, and would even lead to
+e.g.
 
     pattern Id{id} = id
 

@@ -212,6 +212,13 @@ pushWSDeque (WSDeque* q, void * elem)
 
     RELAXED_STORE(&q->elements[b & q->moduloSize], elem);
     RELEASE_FENCE();
+#if defined(TSAN_ENABLED)
+    // ThreadSanizer doesn't know about release fences, so we need to
+    // strengthen this to a release store lest we get spurious data race
+    // reports.
+    RELEASE_STORE(&q->bottom, b+1);
+#else
     RELAXED_STORE(&q->bottom, b+1);
+#endif
     return true;
 }

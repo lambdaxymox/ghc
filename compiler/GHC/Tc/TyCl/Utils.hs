@@ -763,9 +763,7 @@ addTyConsToGblEnv tyclss
     do { traceTc "tcAddTyCons" $ vcat
             [ text "tycons" <+> ppr tyclss
             , text "implicits" <+> ppr implicit_things ]
-       ; gbl_env <- tcRemoveDataFamConPlaceholders tyclss $
-                        tcRecSelBinds =<< mkRecSelBinds tyclss
-       ; return gbl_env }
+       ; getGblEnv }
  where
    implicit_things = concatMap implicitTyConThings tyclss
    def_meth_ids    = mkDefaultMethodIds tyclss
@@ -1390,30 +1388,15 @@ exists, we do not currently solve HasField constraints for fields defined by
 pattern synonyms.  And since we do not need updaters for anything other than
 solving HasField constraints, we do not generate them for pattern synonyms.
 
--}
 
-
-tcRemoveDataFamConPlaceholders :: [TyCon] -> TcM a -> TcM a
--- ^ Remove the placeholders added by tcAddDataFamConPlaceholders
--- See Note [tcRemoveDataFamConPlaceholders]
-tcRemoveDataFamConPlaceholders tycons = updLclEnv upd_env
-  where
-    upd_env env = env { tcl_env = delListFromNameEnv (tcl_env env) cons }
-
-    cons = [ dataConName data_con
-           | tycon <- tycons
-           , isFamInstTyCon tycon
-           , data_con <- tyConDataCons tycon
-           ]
-
-{-
-Note [tcRemoveDataFamConPlaceholders]
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Note [Calling tcRecSelBinds]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 When type-checking record update bindings, we need to be able to look up the
 data constructors for the corresponding datatypes, because the constructors are
 used in the definitions.  However, for data constructors in data family
-instances the tcl_env contains placeholder bindings added to prevent the use of
-promotion (see Note [AFamDataCon: not promoting data family constructors] in
-GHC.Tc.Utils.Env).  Thus we must remove them again before the call to
-tcRecSelBinds in addTyConsToGblEnv.
+instances, tcTyClsInstDecls adds placeholder bindings added to prevent the use
+of promotion (see Note [AFamDataCon: not promoting data family constructors] in
+GHC.Tc.Utils.Env).  Thus we cannot call tcReclSelBinds in addTyConsToGblEnv, but
+instead have to wait until tcTyClsInstDecls has completed.
+
 -}

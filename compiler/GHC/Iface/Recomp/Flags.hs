@@ -17,6 +17,7 @@ import GHC.Unit.Module
 import GHC.Types.Name
 import GHC.Utils.Fingerprint
 import GHC.Iface.Recomp.Binary
+import GHC.Core.Opt.CallerCC () -- for Binary instances
 -- import GHC.Utils.Outputable
 
 import GHC.Data.EnumSet as EnumSet

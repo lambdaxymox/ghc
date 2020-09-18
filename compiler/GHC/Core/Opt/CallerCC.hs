@@ -6,6 +6,7 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE TupleSections #-}
 
+-- | Adds cost-centers to call sites selected with the -fprof-caller=... flag.
 module GHC.Core.Opt.CallerCC
     ( addCallerCostCentres
     , CallerCcFilter
@@ -13,14 +14,12 @@ module GHC.Core.Opt.CallerCC
     ) where
 
 import Data.Bifunctor
-import Data.Data
+import Data.Word (Word8)
 import Data.Maybe
 import qualified Text.Parsec as P
 
 import Control.Applicative
 import Control.Monad.Trans.State.Strict
-import qualified Data.ByteString.Lazy as BSL
-import Data.List (intercalate)
 import Data.Either
 import Control.Monad
 
@@ -37,11 +36,10 @@ import GHC.Types.SrcLoc
 import GHC.Types.Var
 import GHC.Unit.Types
 import GHC.Data.FastString
-import GHC.Types.Id.Info
 import GHC.Core
 import GHC.Core.Opt.Monad
-
-import GHC.Prelude
+import GHC.Utils.Panic
+import qualified GHC.Utils.Binary as B
 
 addCallerCostCentres :: ModGuts -> CoreM ModGuts
 addCallerCostCentres guts = do
@@ -73,7 +71,7 @@ doExpr :: Env -> CoreExpr -> M CoreExpr
 doExpr env e@(Var v)
   | needsCallSiteCostCentre env v = do
     let nameDoc :: SDoc
-        nameDoc = fcat (punctuate dot (map ppr (parents env))) <> parens (text "calling " <> ppr v)
+        nameDoc = hcat (punctuate dot (map ppr (parents env))) <> parens (text "calling " <> ppr v)
 
         ccName :: CcName
         ccName = mkFastString $ showSDoc (dflags env) nameDoc
@@ -86,7 +84,7 @@ doExpr env e@(Var v)
         tick = ProfNote cc True True
     pure $ Tick tick e
   | otherwise = pure e
-doExpr env e@(Lit _)        = pure e
+doExpr _env e@(Lit _)       = pure e
 doExpr env (f `App` x)      = App <$> doExpr env f <*> doExpr env x
 doExpr env (Lam b x)        = Lam b <$> doExpr env x
 doExpr env (Let b rhs)      = Let <$> doBind env b <*> doExpr env rhs
@@ -96,8 +94,8 @@ doExpr env (Case scrut b ty alts) =
     doAlt (con, bs, rhs) = (con, bs,) <$> doExpr env rhs
 doExpr env (Cast expr co)   = Cast <$> doExpr env expr <*> pure co
 doExpr env (Tick t e)       = Tick t <$> doExpr env e
-doExpr env e@(Type _)       = pure e
-doExpr env e@(Coercion _)   = pure e
+doExpr _env e@(Type _)      = pure e
+doExpr _env e@(Coercion _)  = pure e
 
 type M = State CostCentreState
 
@@ -148,6 +146,18 @@ instance Outputable NamePattern where
   ppr (PWildcard rest) = char '*' <> ppr rest
   ppr PEnd = Outputable.empty
 
+instance B.Binary NamePattern where
+  get bh = do
+    tag <- B.get bh
+    case tag :: Word8 of
+      0 -> PChar <$> B.get bh <*> B.get bh
+      1 -> PWildcard <$> B.get bh
+      2 -> pure PEnd
+      _ -> panic "Binary(NamePattern): Invalid tag"
+  put_ bh (PChar x y) = B.put_ bh (0 :: Word8) >> B.put_ bh x >> B.put_ bh y
+  put_ bh (PWildcard x) = B.put_ bh (1 :: Word8) >> B.put_ bh x
+  put_ bh PEnd = B.put_ bh (2 :: Word8)
+
 occNameMatches :: NamePattern -> OccName -> Bool
 occNameMatches pat = go pat . occNameString
   where
@@ -180,6 +190,10 @@ instance Outputable CallerCcFilter where
     maybe (char '*') ppr (ccfModuleName ccf)
     <> char '.'
     <> ppr (ccfFuncName ccf)
+
+instance B.Binary CallerCcFilter where
+  get bh = CallerCcFilter <$> B.get bh <*> B.get bh
+  put_ bh (CallerCcFilter x y) = B.put_ bh x >> B.put_ bh y
 
 parseCallerCcFilter :: String -> Either String CallerCcFilter
 parseCallerCcFilter =

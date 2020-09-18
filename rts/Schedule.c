@@ -1508,7 +1508,7 @@ static bool requestSync (
                           sync->type);
                 ASSERT(*pcap);
                 yieldCapability(pcap,task,true);
-                sync = pending_sync;
+                sync = SEQ_CST_LOAD(&pending_sync);
             } while (sync != NULL);
         }
 

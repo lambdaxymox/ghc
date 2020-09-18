@@ -2729,7 +2729,7 @@ initScheduler(void)
 #endif
 
   sched_state    = SCHED_RUNNING;
-  recent_activity = ACTIVITY_YES;
+  SEQ_CST_STORE(&recent_activity, ACTIVITY_YES);
 
 
   /* Initialise the mutex and condition variables used by

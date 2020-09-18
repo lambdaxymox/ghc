@@ -1539,7 +1539,7 @@ static void acquireAllCapabilities(Capability *cap, Task *task)
     Capability *tmpcap;
     uint32_t i;
 
-    ASSERT(pending_sync != NULL);
+    ASSERT(SEQ_CST_LOAD(&pending_sync) != NULL);
     for (i=0; i < n_capabilities; i++) {
         debugTrace(DEBUG_sched, "grabbing all the capabilies (%d/%d)",
                    i, n_capabilities);

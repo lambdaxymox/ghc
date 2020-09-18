@@ -382,9 +382,9 @@ void initCapabilities (void)
     }
 #endif
 
-    n_capabilities = 0;
+    SEQ_CST_STORE(&n_capabilities, 0);
     moreCapabilities(0, RtsFlags.ParFlags.nCapabilities);
-    n_capabilities = RtsFlags.ParFlags.nCapabilities;
+    SEQ_CST_STORE(&n_capabilities, RtsFlags.ParFlags.nCapabilities);
 
 #else /* !THREADED_RTS */
 
@@ -458,16 +458,16 @@ moreCapabilities (uint32_t from USED_IF_THREADS, uint32_t to USED_IF_THREADS)
 
 void contextSwitchAllCapabilities(void)
 {
-    uint32_t i;
-    for (i=0; i < n_capabilities; i++) {
+    const uint32_t n = SEQ_CST_LOAD(&n_capabilities);
+    for (uint32_t i=0; i < n; i++) {
         contextSwitchCapability(capabilities[i]);
     }
 }
 
 void interruptAllCapabilities(void)
 {
-    uint32_t i;
-    for (i=0; i < n_capabilities; i++) {
+    const uint32_t n = SEQ_CST_LOAD(&n_capabilities);
+    for (uint32_t i=0; i < n; i++) {
         interruptCapability(capabilities[i]);
     }
 }

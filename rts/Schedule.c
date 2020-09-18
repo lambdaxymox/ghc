@@ -2341,7 +2341,8 @@ setNumCapabilities (uint32_t new_n_capabilities USED_IF_THREADS)
 
     // update n_capabilities before things start running
     if (new_n_capabilities > n_capabilities) {
-        n_capabilities = enabled_capabilities = new_n_capabilities;
+        SEQ_CST_STORE(&n_capabilities, new_n_capabilities); // this shouldn't be necessary: we should synthconrize when releasing/acquiring the capabilities
+        enabled_capabilities = new_n_capabilities;
     }
 
     // We're done: release the original Capabilities

@@ -138,6 +138,7 @@ import GHC.Data.FastString
 import GHC.Data.Maybe
 import GHC.Utils.Misc
 import GHC.Parser.Annotation
+import Data.Either
 import Data.List
 import Data.Foldable
 import GHC.Driver.Session ( WarningFlag(..), DynFlags )
@@ -153,11 +154,14 @@ import Data.Kind       ( Type )
 #include "HsVersions.h"
 
 data Fbind b =
-  Fbind (LHsRecField GhcPs (Located b)) | Pbind (Located b -> Located b)
+  Fbind (LHsRecField GhcPs (Located b)) | Pbind (Located (Located b -> Located b))
 
-fbindToRecField :: Fbind b -> LHsRecField GhcPs (Located b)
-fbindToRecField (Fbind f) = f
-fbindToRecField _ = panic "fbindToRecField: The impossible happened"
+fbindsToEithers :: [Fbind b] -> [Either (LHsRecField GhcPs (Located b)) (Located (Located b -> Located b))]
+fbindsToEithers = fmap fbindToEither
+  where
+    fbindToEither :: Fbind b -> Either (LHsRecField GhcPs (Located b)) (Located (Located b -> Located b))
+    fbindToEither (Fbind x) = Left x
+    fbindToEither (Pbind x) = Right x
 
 {- **********************************************************************
 
@@ -1393,7 +1397,7 @@ class b ~ (Body b) GhcPs => DisambECP b where
   -- | Return an expression without ambiguity, or fail in a non-expression context.
   ecpFromExp' :: LHsExpr GhcPs -> PV (Located b)
   -- | This can only be satified by expressions.
-  mkHsFieldUpdaterPV :: SrcSpan -> [Located FastString] -> Located b -> PV (Located b -> Located b)
+  mkHsFieldUpdaterPV :: SrcSpan -> [Located FastString] -> Located b -> PV (Located (Located b -> Located b))
   -- | Disambiguate "\... -> ..." (lambda)
   mkHsLamPV :: SrcSpan -> MatchGroup GhcPs (Located b) -> PV (Located b)
   -- | Disambiguate "let ... in ..."
@@ -1521,9 +1525,7 @@ instance DisambECP (HsCmd GhcPs) where
   type Body (HsCmd GhcPs) = HsCmd
   ecpFromCmd' = return
   ecpFromExp' (L l e) = cmdFail l (ppr e)
-  mkHsFieldUpdaterPV l _ _ =
-    cmdFail l $
-    text "Field selector syntax is not supported in commands."
+  mkHsFieldUpdaterPV l _ _ = cmdFail l (text "Use of RecordDotSyntax `.' not valid.")
   mkHsLamPV l mg = return $ L l (HsCmdLam noExtField mg)
   mkHsLetPV l bs e = return $ L l (HsCmdLet noExtField bs e)
   type InfixOp (HsCmd GhcPs) = HsExpr GhcPs
@@ -1557,8 +1559,12 @@ instance DisambECP (HsCmd GhcPs) where
   mkHsExplicitListPV l xs = cmdFail l $
     brackets (fsep (punctuate comma (map ppr xs)))
   mkHsSplicePV (L l sp) = cmdFail l (ppr sp)
-  mkHsRecordPV _ l _ a (fbinds, ddLoc) = cmdFail l $
-    ppr a <+> ppr (mk_rec_fields fbinds ddLoc)
+  mkHsRecordPV _ l _ a (fbinds, ddLoc) = do
+    let (fs, ps) = partitionEithers $ fbindsToEithers fbinds
+    if not (null ps)
+      then addFatalError (getLoc (head ps))
+            (text "Use of RecordDotSyntax `.' not valid.")
+      else cmdFail l $ ppr a <+> ppr (mk_rec_fields fs ddLoc)
   mkHsNegAppPV l a = cmdFail l (text "-" <> ppr a)
   mkHsSectionR_PV l op c = cmdFail l $
     let pp_op = fromMaybe (panic "cannot print infix operator")
@@ -1587,7 +1593,7 @@ instance DisambECP (HsExpr GhcPs) where
         nest 2 (ppr c) ]
     return (L l hsHoleExpr)
   ecpFromExp' = return
-  mkHsFieldUpdaterPV _ fields arg = return $ mkFieldUpdater fields arg
+  mkHsFieldUpdaterPV l fields arg = return $ mkFieldUpdater l fields arg
   mkHsLamPV l mg = return $ L l (HsLam noExtField mg)
   mkHsLetPV l bs c = return $ L l (HsLet noExtField bs c)
   type InfixOp (HsExpr GhcPs) = HsExpr GhcPs
@@ -1677,7 +1683,7 @@ instance DisambECP (PatBuilder GhcPs) where
       text "Expression syntax in pattern:" <+> ppr e
   mkHsFieldUpdaterPV l _ _ =
     addFatalError l $
-    text "Field selector syntax is not supported in patterns."
+    text "Use of RecordDotSyntax `.' not valid."
   mkHsLamPV l _ = addFatalError l $
     text "Lambda-syntax in pattern." $$
     text "Pattern matching on functions is not possible."
@@ -1709,8 +1715,13 @@ instance DisambECP (PatBuilder GhcPs) where
     return (L l (PatBuilderPat (ListPat noExtField ps)))
   mkHsSplicePV (L l sp) = return $ L l (PatBuilderPat (SplicePat noExtField sp))
   mkHsRecordPV _ l _ a (fbinds, ddLoc) = do
-    r <- mkPatRec a (mk_rec_fields fbinds ddLoc)
-    checkRecordSyntax (L l r)
+    let (fs, ps) = partitionEithers $ fbindsToEithers fbinds
+    if not (null ps)
+     then addFatalError (getLoc (head ps))
+            (text " Use of RecordDotSyntax `.' not valid.")
+     else do
+       r <- mkPatRec a (mk_rec_fields fs ddLoc)
+       checkRecordSyntax (L l r)
   mkHsNegAppPV l (L lp p) = do
     lit <- case p of
       PatBuilderOverLit pos_lit -> return (L lp pos_lit)
@@ -2352,20 +2363,32 @@ mkRecConstrOrUpdate
         -> SrcSpan
         -> ([Fbind (HsExpr GhcPs)], Maybe SrcSpan)
         -> PV (HsExpr GhcPs)
-mkRecConstrOrUpdate _ (L l (HsVar _ (L _ c))) _ (fs,dd)
+mkRecConstrOrUpdate _ (L l (HsVar _ (L _ c))) _ (fbinds,dd)
   | isRdrDataCon c
-  = return (mkRdrRecordCon (L l c) (mk_rec_fields fs dd))
+  = do
+      let (fs, ps) = partitionEithers $ fbindsToEithers fbinds
+      if not (null ps)
+        then addFatalError (getLoc (head ps))
+               (text "Use of RecordDotSyntax `.' not valid.")
+        else return (mkRdrRecordCon (L l c) (mk_rec_fields fs dd))
 mkRecConstrOrUpdate dot exp _ (fs,dd)
   | Just dd_loc <- dd = addFatalError dd_loc (text "You cannot use `..' in a record update")
-  | otherwise = return (mkRdrRecordUpd' dot exp fs)
+  | otherwise = mkRdrRecordUpd' dot exp fs
 
-mkRdrRecordUpd' :: Bool -> LHsExpr GhcPs -> [Fbind (HsExpr GhcPs)] -> HsExpr GhcPs
-mkRdrRecordUpd' dot exp fbinds =
+mkRdrRecordUpd' :: Bool -> LHsExpr GhcPs -> [Fbind (HsExpr GhcPs)] -> PV (HsExpr GhcPs)
+mkRdrRecordUpd' dot exp@(L lexp _) fbinds =
   if not dot
-    then
-      mkRdrRecordUpd exp (map (fmap mk_rec_upd_field) $ map fbindToRecField fbinds)
-    else
-     foldl' fieldUpdate (unLoc exp) fbinds
+    then do
+      let (fs, ps) = partitionEithers $ fbindsToEithers fbinds
+      if not (null ps)
+      then
+        -- If RecordDotSyntax is not enabled (as indicated by the
+        -- value of 'dot'), then the lexer can't ever issue an ITproj
+        -- token and so this case is refuted.
+        panic "mkRdrRecordUpd': The impossible happened!"
+      else return $ mkRdrRecordUpd exp (map (fmap mk_rec_upd_field) fs)
+  else
+     return $ foldl' fieldUpdate (unLoc exp) fbinds
   where
     fieldUpdate :: HsExpr GhcPs -> Fbind (HsExpr GhcPs) -> HsExpr GhcPs
     fieldUpdate acc f =
@@ -2374,7 +2397,7 @@ mkRdrRecordUpd' dot exp fbinds =
         Fbind field ->
           let updField = fmap mk_rec_upd_field field
           in unLoc $ foldl' mkSetField (noLoc acc) [updField]
-        Pbind fieldUpdater -> unLoc (fieldUpdater (noLoc acc))
+        Pbind (L _ fieldUpdater) -> unLoc (fieldUpdater (noLoc acc))
 
 mkRdrRecordUpd :: LHsExpr GhcPs -> [LHsRecUpdField GhcPs] -> HsExpr GhcPs
 mkRdrRecordUpd exp flds
@@ -2386,12 +2409,9 @@ mkRdrRecordCon :: Located RdrName -> HsRecordBinds GhcPs -> HsExpr GhcPs
 mkRdrRecordCon con flds
   = RecordCon { rcon_ext = noExtField, rcon_con_name = con, rcon_flds = flds }
 
-
-
-mk_rec_fields :: [Fbind b] -> Maybe SrcSpan -> HsRecFields GhcPs (Located b)
-mk_rec_fields fs Nothing = HsRecFields { rec_flds = map fbindToRecField fs, rec_dotdot = Nothing }
-mk_rec_fields fs (Just s)  = HsRecFields { rec_flds = map fbindToRecField fs
-                                     , rec_dotdot = Just (L s (length fs)) }
+mk_rec_fields :: [LHsRecField GhcPs (Located b)] -> Maybe SrcSpan -> HsRecFields GhcPs (Located b)
+mk_rec_fields flds Nothing = HsRecFields { rec_flds = flds, rec_dotdot = Nothing }
+mk_rec_fields flds (Just s) = HsRecFields { rec_flds = flds, rec_dotdot = Just (L s (length flds)) }
 
 mk_rec_upd_field :: HsRecField GhcPs (LHsExpr GhcPs) -> HsRecUpdField GhcPs
 mk_rec_upd_field (HsRecField (L loc (FieldOcc _ rdr)) arg pun)
@@ -2983,8 +3003,9 @@ mkSet :: LHsExpr GhcPs -> Located FastString -> LHsExpr GhcPs -> LHsExpr GhcPs
 mkSet a (L _ fIELD) b = set_field `mkAppType` mkSelector fIELD `mkApp` a `mkApp` b
 
 -- mkFieldUpdater calculates functions representing dot notation record updates.
-mkFieldUpdater :: [Located FastString] -> LHsExpr GhcPs -> (LHsExpr GhcPs -> LHsExpr GhcPs)
+mkFieldUpdater :: SrcSpan -> [Located FastString] -> LHsExpr GhcPs -> Located (LHsExpr GhcPs -> LHsExpr GhcPs)
 mkFieldUpdater -- e.g {foo.bar.baz.quux = 43}
+  l
   fIELDS -- [foo, bar, baz, quux]
   arg -- This is 'texp' (43 in the example).
   = let {
@@ -2995,7 +3016,7 @@ mkFieldUpdater -- e.g {foo.bar.baz.quux = 43}
       ; zips = \a -> (final, head (getters a)) : zip (reverse fields) (tail (getters a)) -- Ordered from deep to shallow.
           -- [("quux", getField@"baz"(getField@"bar"(getField@"foo" a)), ("baz", getField@"bar"(getField@"foo" a)), ("bar", getField@"foo" a), ("foo", a)]
       }
-    in \a -> foldl' mkSet' arg (zips a)
+    in L l $ \a -> foldl' mkSet' arg (zips a)
           -- setField@"foo" (a) (setField@"bar" (getField @"foo" (a))(setField@"baz" (getField @"bar" (getField @"foo" (a)))(setField@"quux" (getField @"baz" (getField @"bar" (getField @"foo" (a))))(quux))))
     where
       mkSet' :: LHsExpr GhcPs -> (Located FastString, LHsExpr GhcPs) -> LHsExpr GhcPs

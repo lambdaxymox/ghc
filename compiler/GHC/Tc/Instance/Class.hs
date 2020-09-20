@@ -691,7 +691,7 @@ matchHasField dflags short_cut clas tys
                -- the field selector should be in scope
              , Just gre <- lookupGRE_FieldLabel rdr_env fl
 
-             -> ASSERT ( k `eqType` typeSymbolKind )
+             -> ASSERT( k `eqType` typeSymbolKind )
                -- Look up the updater and instantiate its type with fresh metavars
                 do { upd_id <- tcLookupId (flUpdate fl)
                    ; inst_upd@(_, _, upd_ty) <- tcInstType newMetaTyVars upd_id

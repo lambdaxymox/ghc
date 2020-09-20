@@ -1,0 +1,2 @@
+RecordDotSyntaxFail1.hs:3:10:
+    Field selector syntax is not supported in patterns.

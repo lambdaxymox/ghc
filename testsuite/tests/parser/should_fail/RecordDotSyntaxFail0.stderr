@@ -1,0 +1,5 @@
+ghc: panic! (the 'impossible' happened)
+  (GHC version 8.11.0.20200909:
+	fbindToRecField: The impossible happened
+
+Please report this as a GHC bug:  https://www.haskell.org/ghc/reportabug
